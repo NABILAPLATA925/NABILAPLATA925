@@ -22,22 +22,19 @@
 
 
 
-  @media (max-width: 768px) {
-    nav { padding: 0 10px !important; }
-    .nav-inner { height: 50px !important; }
-    .nav-logo { font-size: 11px !important; letter-spacing: 0px !important; }
-    .nav-logo-img { height: 1.1em !important; width: 1.1em !important; }
-    .nav-search-btn { padding: 4px 6px !important; font-size: 11px !important; }
-    .nav-social { gap: 6px !important; }
-    .nav-icon { 
-      width: 26px !important; 
-      height: 26px !important; 
-    }
-    .nav-icon svg { 
-      width: 12px !important; 
-      height: 12px !important; 
-    }
-  }
+  /* NAV */
+  nav{position:fixed;top:0;width:100%;z-index:100;background:rgba(253,248,245,0.92);backdrop-filter:blur(12px);border-bottom:0.5px solid var(--fondo);padding: 0 10px !important}
+  .nav-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height: 50px !important}
+  .nav-logo{font-family:var(--font-nav),serif;font-size: 11px !important; letter-spacing: 0px !important;font-weight:300;white-space: nowrap;gap: 6px !important;;color:var(--text);text-transform:uppercase;cursor:pointer}
+  .nav-logo span{color:var(--principal);font-style:italic}
+  .nav-logo-img {height: 1.1em !important; width: 1.1em !important; object-fit: contain; background: transparent;}
+  .nav-links{display:flex;gap:2rem;list-style:none}
+  .nav-links a{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--text-soft);text-decoration:none;cursor:pointer;transition:color .2s}
+  .nav-links a:hover{color:var(--principal)}
+  .nav-social{display:flex;gap: 6px !important;align-items:center}
+  .nav-icon{width:26px !important;height:26px !important;border:0.5px solid var(--detalles);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .2s;text-decoration:none}
+  .nav-icon:hover{background:var(--fondo)}
+  .nav-icon svg{width:12px !important;height:12px !important;stroke:var(--principal);fill:none;stroke-width:1.5}
 
   /* HERO */
   .hero {
@@ -596,14 +593,14 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 18px;
+  padding: 4px 6px !important;
   background: var(--secciones);
   border: 1px solid var(--detalles);
   border-radius: 20px; /* Crea la forma de pastilla redondeada */
   cursor: pointer;
   color: var(--principal);
   font-family: var(--font-cuerpo);
-  font-size: 11px;
+  font-size: 11px !important;
   letter-spacing: 2px;
   text-transform: uppercase;
   text-decoration: none;
