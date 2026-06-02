@@ -7,7 +7,7 @@ const SITE_CONFIG = {
 
   // ── MARCA ──────────────────────────────────────────────────────
   // Nombre que aparece en el nav, hero, footer y título del browser
-  marcaPrincipal: "Nebila",      // Parte normal del nombre
+  marcaPrincipal: "Nabila",      // Parte normal del nombre
   marcaItalica:   "Plata 925",   // Parte en cursiva y con color del acento
 
   // ── DESCRIPCIÓN CORTA ──────────────────────────────────────────
@@ -56,12 +56,12 @@ const SITE_CONFIG = {
 
   // ── FOOTER ─────────────────────────────────────────────────────
   footer: {
-    copyright: "© 2026 Nebila Plata 925 · Tu brillo, tu esencia"
+    copyright: "© 2026 Nabila Plata 925 · Tu brillo, tu esencia"
   },
 
   // ── ADMIN ──────────────────────────────────────────────────────
   admin: {
-    nombrePanel: "Nebila Plata 925"   // Aparece en la barra de administrador
+    nombrePanel: "Nabila Plata 925"   // Aparece en la barra de administrador
   },
 
   // ── TIPO DE PRODUCTO (para los textos del panel admin) ─────────
