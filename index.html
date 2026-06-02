@@ -37,13 +37,24 @@
     </ul>
     <div class="nav-social">
       <button class="nav-search-btn" onclick="abrirBuscador()" title="Buscar productos">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8">
+          <circle cx="11" cy="11" r="7"/>
+          <line x1="16.5" y1="16.5" x2="22" y2="22"/>
+        </svg>
+        <span>Buscar</span>
       </button>
       <a class="nav-icon" id="nav-ig-link" href="#" target="_blank" title="Instagram">
-        <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+        <svg viewBox="0 0 24 24">
+          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+          <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+        </svg>
       </a>
       <a class="nav-icon" id="nav-wa-link" href="#" target="_blank" title="WhatsApp">
-        <svg viewBox="0 0 24 24" fill="var(--principal)" stroke="none"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.555 4.12 1.527 5.849L.057 23.5l5.797-1.52A11.95 11.95 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.792 9.792 0 0 1-5.054-1.404l-.362-.215-3.44.902.919-3.357-.236-.376A9.794 9.794 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/></svg>
+        <svg viewBox="0 0 24 24" fill="var(--principal)" stroke="none">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+          <path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.555 4.12 1.527 5.849L.057 23.5l5.797-1.52A11.95 11.95 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.792 9.792 0 0 1-5.054-1.404l-.362-.215-3.44.902.919-3.357-.236-.376A9.794 9.794 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/>
+        </svg>
       </a>
     </div>
   </div>
@@ -339,7 +350,7 @@
     </div>
 
     <!-- TAB: INICIO / HERO -->
-    <div class="ep-panel" id="ep-panel-hero">
+    <div class="ep-panel" id="ep-panel-hero">     
       <div class="admin-field">
         <label>Imagen del título principal (logo del hero)</label>
         <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Subí la imagen que reemplaza el texto del título en el hero. Se guarda en Firestore y se aplica automáticamente.</p>
@@ -355,6 +366,26 @@
           <p style="font-size:11px;color:var(--text-soft);margin:0 0 4px">Imagen actual:</p>
           <img id="ep-hero-logo-actual-img" src="" alt="Logo actual" style="max-width:180px;border-radius:4px;opacity:0.7;border:1px solid var(--detalles)">
         </div>
+      </div>
+      <div class="admin-field">
+        <label>Imagen para el NAV (Al lado de la marca)</label>
+        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Subí la imagen que aparecerá junto a tu marca en la barra superior. Usá un archivo PNG con fondo transparente.</p>
+        <label class="admin-foto-label" for="ep-nav-logo-input" style="margin-top:4px">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span id="ep-nav-logo-texto">Hacé clic para subir la imagen del NAV</span>
+        </label>
+        <input type="file" id="ep-nav-logo-input" accept="image/*" style="display:none" onchange="cargarNavLogo(event)">       
+        <div id="ep-nav-logo-preview" style="margin-top:10px;display:none">
+          <img id="ep-nav-logo-thumb" src="" alt="Preview" style="max-height:40px;border-radius:4px;border:1px solid var(--detalles);background:#f9f9f9;padding:4px">
+        </div>        
+        <div id="ep-nav-logo-actual" style="margin-top:8px;display:none">
+          <p style="font-size:11px;color:var(--text-soft);margin:0 0 4px">Imagen actual:</p>
+          <img id="ep-nav-logo-actual-img" src="" alt="Logo actual" style="max-height:40px;border-radius:4px;opacity:0.7;border:1px solid var(--detalles);background:#f9f9f9;padding:4px">
+        </div>
+      </div>
+      <div class="admin-field">
+        <label>Rubro (ej: Indumentaria y joyería)</label>
+        <input type="text" id="ep-rubro" placeholder="Ej: Indumentaria y joyería">
       </div>
       <div class="admin-field">
         <label>Rubro (ej: Indumentaria y joyería)</label>

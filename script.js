@@ -95,8 +95,16 @@ function applyConfig() {
   applyColores(C.colores);
 
   // ── NAV ──────────────────────────────────────────────
-  document.getElementById('nav-logo').innerHTML =
-    `${C.marcaPrincipal} <span>${C.marcaItalica}</span>`;
+  const navLogoContainer = document.getElementById('nav-logo');
+  if (C._navLogoImg) {
+    navLogoContainer.innerHTML = `<img src="${C._navLogoImg}" class="nav-logo-img" alt="Logo"> ${C.marcaPrincipal} <span>${C.marcaItalica}</span>`;
+  } else {
+    navLogoContainer.innerHTML = `${C.marcaPrincipal} <span>${C.marcaItalica}</span>`;
+  }
+  // Añadir flex para alinear imagen y texto perfectamente
+  navLogoContainer.style.display = 'flex';
+  navLogoContainer.style.alignItems = 'center';
+  navLogoContainer.style.gap = '10px';
   document.getElementById('nav-ig-link').href =
     `https://instagram.com/${C.instagram}`;
   document.getElementById('nav-wa-link').href =
@@ -1367,6 +1375,7 @@ const CONFIG_REF = db.collection('catalogo').doc('siteConfig');
 let nosotrosImgPendiente = null;
 // Imagen del logo del hero pendiente de guardar (base64)
 let heroLogoImgPendiente = null;
+let navLogoImgPendiente = null;
 
 function cargarHeroLogo(e){
   const file = e.target.files[0];
@@ -1377,6 +1386,20 @@ function cargarHeroLogo(e){
     document.getElementById('ep-hero-logo-preview').style.display = 'block';
     document.getElementById('ep-hero-logo-texto').textContent = 'Imagen cargada — clic para cambiar';
     const actualEl = document.getElementById('ep-hero-logo-actual');
+    if(actualEl) actualEl.style.display = 'none';
+  });
+  e.target.value = '';
+}
+
+function cargarNavLogo(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  comprimirImagenPNG(file, base64 => { // Usa PNG para preservar la transparencia
+    navLogoImgPendiente = base64;
+    document.getElementById('ep-nav-logo-thumb').src = base64;
+    document.getElementById('ep-nav-logo-preview').style.display = 'block';
+    document.getElementById('ep-nav-logo-texto').textContent = 'Imagen cargada — clic para cambiar';
+    const actualEl = document.getElementById('ep-nav-logo-actual');
     if(actualEl) actualEl.style.display = 'none';
   });
   e.target.value = '';
@@ -1397,6 +1420,7 @@ async function cargarConfigEditable(){
       if(data.contacto)         SITE_CONFIG.contacto         = { ...SITE_CONFIG.contacto, ...data.contacto };
       if(data.nosotrosImg)      SITE_CONFIG._nosotrosImg     = data.nosotrosImg;
       if(data.heroLogoImg)      SITE_CONFIG._heroLogoImg     = data.heroLogoImg;
+      if(data.navLogoImg)       SITE_CONFIG._navLogoImg      = data.navLogoImg;
     }
   } catch(err){
     console.warn('No se pudo cargar configEditable:', err);
@@ -1547,6 +1571,10 @@ async function guardarEditarPagina(){
   document.getElementById('edit-pagina-modal').classList.remove('active');
   mostrarToast('Guardando…');
 
+  if(navLogoImgPendiente){
+    C._navLogoImg = navLogoImgPendiente;
+  }
+
   // ── Persistir en Firebase ──────────────────────────────
   try {
     await CONFIG_REF.set({
@@ -1558,7 +1586,8 @@ async function guardarEditarPagina(){
       instagram:    C.instagram,
       contacto:     C.contacto,
       nosotrosImg:  C._nosotrosImg || null,
-      heroLogoImg:  C._heroLogoImg || null
+      heroLogoImg:  C._heroLogoImg || null,
+      navLogoImg: C._navLogoImg || null
     });
     mostrarToast('Cambios guardados ✓');
   } catch(err){

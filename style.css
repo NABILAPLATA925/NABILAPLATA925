@@ -24,9 +24,10 @@
 
   /* NAV */
   nav{position:fixed;top:0;width:100%;z-index:100;background:rgba(253,248,245,0.92);backdrop-filter:blur(12px);border-bottom:0.5px solid var(--fondo);padding:0 2rem}
-  .nav-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:64px}
+  .nav-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:64px}
   .nav-logo{font-family:var(--font-nav),serif;font-size:22px;font-weight:300;letter-spacing:3px;color:var(--text);text-transform:uppercase;cursor:pointer}
   .nav-logo span{color:var(--principal);font-style:italic}
+  .nav-logo-img {height: 1em; width: 1em; object-fit: contain; background: transparent;}
   .nav-links{display:flex;gap:2rem;list-style:none}
   .nav-links a{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--text-soft);text-decoration:none;cursor:pointer;transition:color .2s}
   .nav-links a:hover{color:var(--principal)}
@@ -571,17 +572,36 @@
 .cat-checkbox-label:has(input:checked){border-color:var(--principal);background:color-mix(in srgb,var(--principal) 12%,transparent);color:var(--text);font-weight:500}
 
 /* ── BUSCADOR NAV ─────────────────────────────────────── */
-.nav-search-btn{
-  width:36px;height:36px;
-  border:0.5px solid var(--detalles);
-  border-radius:50%;
-  background:transparent;
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;transition:background .2s;
-  flex-shrink:0;
+.nav-search-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  background: var(--secciones);
+  border: 1px solid var(--detalles);
+  border-radius: 20px; /* Crea la forma de pastilla redondeada */
+  cursor: pointer;
+  color: var(--principal);
+  font-family: var(--font-cuerpo);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: all 0.3s ease;
 }
-.nav-search-btn:hover{background:var(--fondo)}
-.nav-search-btn svg{width:16px;height:16px;stroke:var(--principal)}
+.nav-search-btn:hover {
+  background: var(--principal);
+  color: var(--white);
+}
+.nav-search-btn svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor; /* Hereda el color al hacer hover */
+  fill: none;
+  stroke-width: 2;
+}
+
+
 
 /* ── SEARCH OVERLAY ──────────────────────────────────── */
 .search-overlay{
