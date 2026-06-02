@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cargando…</title>
+<link id="gfonts" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
+<!-- ═══════════════════════════════════════
+     config.js va PRIMERO — contiene todos
+     los datos del cliente (colores, textos,
+     contactos, Firebase, etc.)
+     ═══════════════════════════════════════ -->
+<script src="config.js"></script>
+
+<link rel="stylesheet" href="style.css">
+
+<link rel="icon" href="img/favicon.png" type="image/png">
+
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <div class="nav-logo" id="nav-logo" onclick="scrollToSection('hero')">
+      <!-- Llenado por applyConfig() desde config.js -->
+    </div>
+    <ul class="nav-links">
+      <li><a onclick="scrollToSection('nosotros')">Nosotros</a></li>
+      <li><a onclick="scrollToSection('productos')">Productos</a></li>
+      <li><a onclick="scrollToSection('contacto')">Contacto</a></li>
+    </ul>
+    <div class="nav-social">
+      <button class="nav-search-btn" onclick="abrirBuscador()" title="Buscar productos">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+      </button>
+      <a class="nav-icon" id="nav-ig-link" href="#" target="_blank" title="Instagram">
+        <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+      </a>
+      <a class="nav-icon" id="nav-wa-link" href="#" target="_blank" title="WhatsApp">
+        <svg viewBox="0 0 24 24" fill="var(--principal)" stroke="none"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.555 4.12 1.527 5.849L.057 23.5l5.797-1.52A11.95 11.95 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.792 9.792 0 0 1-5.054-1.404l-.362-.215-3.44.902.919-3.357-.236-.376A9.794 9.794 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/></svg>
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div id="hero" style="position:relative">
+  <div class="hero">
+    <div class="hero-bg">
+      <div class="hero-circle hc1"></div>
+      <div class="hero-circle hc2"></div>
+      <div class="hero-circle hc3"></div>
+    </div>
+    <div class="hero-content">
+      <p class="hero-eyebrow" id="hero-eyebrow-1"></p>
+      <p class="hero-eyebrow" id="hero-eyebrow-2"></p>
+      <h1 class="hero-title" id="hero-title" style="display:none"></h1>
+      <div class="hero-title-img-wrap" id="hero-title-img-wrap" style="display:none">
+        <img id="hero-title-img" src="" alt="Logo" style="max-width:340px;width:85%;height:auto;display:block;margin:0 auto">
+      </div>
+      <p class="hero-subtitle" id="hero-subtitle"></p>
+      <div class="hero-cta">
+        <button class="btn-primary" onclick="scrollToSection('productos')">Ver productos</button>
+        <button class="btn-outline" onclick="scrollToSection('contacto')">Contactarnos</button>
+      </div>
+    </div>
+    <div class="hero-scroll" onclick="scrollToSection('nosotros')">
+      <div class="scroll-line"></div>
+      <span>Explorar</span>
+    </div>
+  </div>
+</div>
+
+<!-- NOSOTROS -->
+<section id="nosotros">
+  <div class="container">
+    <div class="about-grid">
+      <div class="about-image">
+        <div class="about-img-placeholder">
+          <img src="img/logo.jpg" alt="Logo" style="width:100%; height:auto;">
+          <p id="nosotros-slogan"></p>
+        </div>
+        <div class="about-accent"></div>
+      </div>
+      <div class="about-text">
+        <p class="section-label" id="nosotros-label"></p>
+        <h2 class="section-title" id="nosotros-titulo"></h2>
+        <div class="divider"></div>
+        <!-- Los párrafos se generan desde config.js → nosotros.parrafos -->
+        <div id="nosotros-parrafos"></div>
+        <!-- Los stats se generan desde config.js → nosotros.stats -->
+        <div id="nosotros-stats"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRODUCTOS -->
+<section id="productos" class="productos-section">
+  <div class="container">
+    <div class="productos-header">
+      <div>
+        <p class="section-label" id="productos-label"></p>
+        <h2 class="section-title" id="productos-titulo"></h2>
+      </div>
+    </div>
+    <div id="carrousels-container">
+      <div id="carrusel-loading" class="carrusel-loading">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACTO -->
+<section id="contacto" class="contacto-section">
+  <div class="container">
+    <div class="contacto-grid">
+      <div class="contacto-info">
+        <p class="section-label" id="contacto-label"></p>
+        <h2 class="section-title" id="contacto-titulo"></h2>
+        <div class="divider"></div>
+        <div class="contact-item">
+          <div class="contact-icon">
+            <svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          </div>
+          <div>
+            <h4>WhatsApp</h4>
+            <a id="contacto-wa-link" href="#" target="_blank"></a>
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon">
+            <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+          </div>
+          <div>
+            <h4>Instagram</h4>
+            <a id="contacto-ig-link" href="#" target="_blank"></a>
+          </div>
+        </div>
+        <div class="social-strip">
+          <a class="social-btn" id="contacto-social-ig" href="#" target="_blank">
+            <svg viewBox="0 0 24 24" stroke="var(--principal)" fill="none" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+            Instagram
+          </a>
+          <a class="social-btn" id="contacto-social-wa" href="#" target="_blank">
+            <svg viewBox="0 0 24 24" fill="var(--principal)" width="14" height="14"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.555 4.12 1.527 5.849L.057 23.5l5.797-1.52A11.95 11.95 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.792 9.792 0 0 1-5.054-1.404l-.362-.215-3.44.902.919-3.357-.236-.376A9.794 9.794 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/></svg>
+            WhatsApp
+          </a>
+        </div>
+      </div>
+      <div class="contacto-cta">
+        <h3 id="contacto-cta-titulo"></h3>
+        <p id="contacto-cta-p"></p>
+        <a class="whatsapp-btn" id="contacto-cta-btn" href="#" target="_blank">
+          <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.555 4.12 1.527 5.849L.057 23.5l5.797-1.52A11.95 11.95 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.792 9.792 0 0 1-5.054-1.404l-.362-.215-3.44.902.919-3.357-.236-.376A9.794 9.794 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/></svg>
+          <span id="contacto-cta-btn-texto"></span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo" id="footer-logo"></div>
+  <div class="footer-tagline" id="footer-tagline"></div>
+  <div class="footer-social">
+    <a class="footer-icon" id="footer-ig-link" href="#" target="_blank">
+      <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+    </a>
+    <a class="footer-icon" id="footer-wa-link" href="#" target="_blank">
+      <svg viewBox="0 0 24 24" fill="var(--fondo)" stroke="none"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.555 4.12 1.527 5.849L.057 23.5l5.797-1.52A11.95 11.95 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.792 9.792 0 0 1-5.054-1.404l-.362-.215-3.44.902.919-3.357-.236-.376A9.794 9.794 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/></svg>
+    </a>
+  </div>
+  <p class="footer-copy" id="footer-copy"></p>
+</footer>
+
+<!-- MODAL PRODUCTO -->
+<div class="modal-overlay" id="modal" onclick="closeModal(event)">
+  <div class="modal" style="position:relative">
+    <button class="modal-close" onclick="document.getElementById('modal').classList.remove('active')">✕</button>
+    <div class="modal-img" id="modal-img"></div>
+    <div class="modal-body">
+      <p class="modal-tipo" id="modal-tipo"></p>
+      <h2 class="modal-title" id="modal-title"></h2>
+      <div class="modal-divider"></div>
+      <p class="modal-precio" id="modal-precio"></p>
+      <p class="modal-desc" id="modal-desc"></p>
+      <a class="whatsapp-btn" id="modal-wa" href="#" target="_blank">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.555 4.12 1.527 5.849L.057 23.5l5.797-1.52A11.95 11.95 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.792 9.792 0 0 1-5.054-1.404l-.362-.215-3.44.902.919-3.357-.236-.376A9.794 9.794 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/></svg>
+        Consultar por WhatsApp
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN BAR (se muestra solo en modo admin) -->
+<div id="admin-bar" class="admin-bar" style="display:none">
+  <div class="admin-badge">
+    <span class="dot-live"></span>
+    Modo Administrador — <span id="admin-badge-nombre"></span>
+  </div>
+  <div class="admin-actions">
+    <button class="btn-admin-add" onclick="abrirModalAgregar()">+ Agregar producto</button>
+    <button class="btn-admin-reset" onclick="abrirModalReorden()">⇅ Reordenar</button>
+    <button class="btn-admin-reset" onclick="abrirModalCategorias()">👁 Categorías</button>
+    <button class="btn-admin-reset" onclick="abrirModalEditarPagina()">✏ Editar página</button>
+    <button onclick="logoutAdmin()">Salir</button>
+  </div>
+</div>
+
+<!-- MODAL AGREGAR PRODUCTO (admin) -->
+<div class="admin-modal-overlay" id="admin-modal" onclick="cerrarAdminModal(event)">
+  <div class="admin-modal">
+    <button class="admin-close" onclick="document.getElementById('admin-modal').classList.remove('active')">✕</button>
+    <h2>Nuevo producto</h2>
+    <p class="a-subtitle" id="admin-modal-subtitle"></p>
+
+    <div class="admin-field">
+      <label>Nombre del producto *</label>
+      <input type="text" id="a-nombre" placeholder="">
+    </div>
+    <div class="admin-field">
+      <label>Precio</label>
+      <input type="text" id="a-precio" placeholder="Ej: $25.000">
+    </div>
+    <div class="admin-field">
+      <label>Categorías * <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(podés elegir más de una)</span></label>
+      <div id="a-tipos-checks" style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 0;min-height:36px"></div>
+      <button type="button" onclick="toggleNuevaCat()" style="margin-top:4px;background:none;border:1px dashed var(--detalles);border-radius:2px;padding:6px 12px;cursor:pointer;font-family:'Jost';font-size:13px;color:var(--text-soft)">＋ Nueva categoría</button>
+      <div id="a-tipo-nueva-wrap" style="display:none;margin-top:8px">
+        <input type="text" id="a-tipo-nueva" placeholder="Nombre de la nueva categoría" style="width:100%;padding:10px 14px;border:1px solid var(--detalles);border-radius:2px;font-family:'Jost';font-size:14px;color:var(--text);background:var(--secciones);outline:none">
+      </div>
+    </div>
+    <div class="admin-field">
+      <label>Descripción *</label>
+      <textarea id="a-desc" placeholder="Contá sus características, qué lo hace especial…"></textarea>
+    </div>
+    <div class="admin-field">
+      <label>Fotos del producto * <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(podés agregar varias · hacé clic en una para marcarla como portada)</span></label>
+      <label class="admin-foto-label" for="a-foto-input">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span id="a-foto-texto">Hacé clic para subir imágenes</span>
+      </label>
+      <input type="file" id="a-foto-input" accept="image/*" multiple style="display:none" onchange="agregarFotos(event)">
+      <div class="fotos-preview-grid" id="fotos-preview-grid"></div>
+    </div>
+
+    <div class="admin-modal-btns">
+      <button class="btn-cancelar" onclick="document.getElementById('admin-modal').classList.remove('active')">Cancelar</button>
+      <button class="btn-guardar" onclick="guardarProducto()">Guardar producto</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL REORDENAR (admin) -->
+<div class="reorder-modal-overlay" id="reorder-modal" onclick="cerrarModalReorden(event)">
+  <div class="reorder-modal">
+    <button class="admin-close" onclick="document.getElementById('reorder-modal').classList.remove('active')">✕</button>
+    <h2>Reordenar productos</h2>
+    <p class="a-subtitle">Arrastrá las tarjetas para cambiar el orden</p>
+    <div class="admin-field" style="margin-bottom:1.4rem">
+      <label>Categoría</label>
+      <select id="reorder-cat-select" onchange="cambiarCatReorden()"></select>
+    </div>
+    <ul class="reorder-list" id="reorder-list"></ul>
+    <div class="reorder-modal-btns">
+      <button class="btn-cancelar" onclick="document.getElementById('reorder-modal').classList.remove('active')">Cancelar</button>
+      <button class="btn-guardar" onclick="guardarReorden()">Guardar orden</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CATEGORÍAS (admin) -->
+<div class="cat-modal-overlay" id="cat-modal" onclick="cerrarModalCategorias(event)">
+  <div class="cat-modal">
+    <button class="admin-close" onclick="document.getElementById('cat-modal').classList.remove('active')">✕</button>
+    <h2>Categorías visibles</h2>
+    <p class="a-subtitle">Elegí cuáles mostrar en la página</p>
+    <div id="cat-toggle-list"></div>
+    <div class="reorder-modal-btns" style="margin-top:2rem">
+      <button class="btn-cancelar" onclick="document.getElementById('cat-modal').classList.remove('active')">Cancelar</button>
+      <button class="btn-guardar" onclick="guardarCategorias()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SEARCH OVERLAY -->
+<div class="search-overlay" id="search-overlay" onclick="if(event.target===this)cerrarBuscador()">
+  <div class="search-panel">
+    <div class="search-header">
+      <div class="search-input-wrap">
+        <svg class="search-icon-input" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+        <input
+          type="text"
+          id="search-input"
+          class="search-input"
+          placeholder="Buscá un producto…"
+          oninput="onSearchInput(event)"
+          autocomplete="off"
+        >
+        <button class="search-close-btn" onclick="cerrarBuscador()">✕</button>
+      </div>
+      <div class="search-count" id="search-count"></div>
+    </div>
+    <div class="search-results" id="search-results"></div>
+    <div class="search-empty" id="search-empty" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.3"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/><line x1="8" y1="8" x2="14" y2="14"/><line x1="14" y1="8" x2="8" y2="14"/></svg>
+      <p>No encontramos resultados para <span class="search-empty-term"></span></p>
+      <p class="search-empty-hint">Intentá con otra palabra clave</p>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="admin-toast" id="admin-toast"></div>
+
+<script src="script.js"></script>
+
+<!-- MODAL EDITAR PÁGINA (admin) -->
+<div class="admin-modal-overlay" id="edit-pagina-modal" onclick="cerrarModalEditarPagina(event)">
+  <div class="admin-modal" style="max-height:90vh;overflow-y:auto">
+    <button class="admin-close" onclick="document.getElementById('edit-pagina-modal').classList.remove('active')">✕</button>
+    <h2>Editar contenido de la página</h2>
+    <p class="a-subtitle">Los cambios se aplican al instante en toda la página</p>
+
+    <!-- TABS -->
+    <div class="ep-tabs" style="display:flex;gap:8px;margin:1.2rem 0 1.6rem;border-bottom:1px solid var(--detalles);padding-bottom:0">
+      <button class="ep-tab active" data-tab="hero" onclick="cambiarTabEP('hero')">Inicio</button>
+      <button class="ep-tab" data-tab="nosotros" onclick="cambiarTabEP('nosotros')">Nosotros</button>
+      <button class="ep-tab" data-tab="contacto" onclick="cambiarTabEP('contacto')">Contacto</button>
+    </div>
+
+    <!-- TAB: INICIO / HERO -->
+    <div class="ep-panel" id="ep-panel-hero">
+      <div class="admin-field">
+        <label>Imagen del título principal (logo del hero)</label>
+        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Subí la imagen que reemplaza el texto del título en el hero. Se guarda en Firestore y se aplica automáticamente.</p>
+        <label class="admin-foto-label" for="ep-hero-logo-input" style="margin-top:4px">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span id="ep-hero-logo-texto">Hacé clic para subir la imagen del título</span>
+        </label>
+        <input type="file" id="ep-hero-logo-input" accept="image/*" style="display:none" onchange="cargarHeroLogo(event)">
+        <div id="ep-hero-logo-preview" style="margin-top:10px;display:none">
+          <img id="ep-hero-logo-thumb" src="" alt="Preview" style="max-width:220px;border-radius:4px;border:1px solid var(--detalles)">
+        </div>
+        <div id="ep-hero-logo-actual" style="margin-top:8px;display:none">
+          <p style="font-size:11px;color:var(--text-soft);margin:0 0 4px">Imagen actual:</p>
+          <img id="ep-hero-logo-actual-img" src="" alt="Logo actual" style="max-width:180px;border-radius:4px;opacity:0.7;border:1px solid var(--detalles)">
+        </div>
+      </div>
+      <div class="admin-field">
+        <label>Rubro (ej: Indumentaria y joyería)</label>
+        <input type="text" id="ep-rubro" placeholder="Ej: Indumentaria y joyería">
+      </div>
+      <div class="admin-field">
+        <label>Ubicación (ej: Córdoba)</label>
+        <input type="text" id="ep-ubicacion" placeholder="Ej: Córdoba">
+      </div>
+      <div class="admin-field">
+        <label>Subtítulo del hero</label>
+        <textarea id="ep-hero-subtitulo" rows="2" placeholder="Frase principal debajo del título…"></textarea>
+      </div>
+      <div class="admin-field">
+        <label>Imagen de la sección Nosotros</label>
+        <label class="admin-foto-label" for="ep-nosotros-img-input" style="margin-top:6px">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span id="ep-nosotros-img-texto">Hacé clic para cambiar la imagen</span>
+        </label>
+        <input type="file" id="ep-nosotros-img-input" accept="image/*" style="display:none" onchange="cargarImagenNosotros(event)">
+        <div id="ep-nosotros-img-preview" style="margin-top:10px;display:none">
+          <img id="ep-nosotros-img-thumb" src="" alt="Preview" style="max-width:160px;border-radius:4px;border:1px solid var(--detalles)">
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: NOSOTROS -->
+    <div class="ep-panel" id="ep-panel-nosotros" style="display:none">
+      <div class="admin-field">
+        <label>Etiqueta (ej: Nuestra esencia)</label>
+        <input type="text" id="ep-nos-label" placeholder="">
+      </div>
+      <div class="admin-field">
+        <label>Título</label>
+        <input type="text" id="ep-nos-titulo" placeholder="">
+      </div>
+      <div class="admin-field">
+        <label>Párrafo 1</label>
+        <textarea id="ep-nos-p1" rows="3"></textarea>
+      </div>
+      <div class="admin-field">
+        <label>Párrafo 2</label>
+        <textarea id="ep-nos-p2" rows="3"></textarea>
+      </div>
+      <div class="admin-field">
+        <label>Párrafo 3</label>
+        <textarea id="ep-nos-p3" rows="3"></textarea>
+      </div>
+      <div class="admin-field">
+        <label>Slogan</label>
+        <input type="text" id="edit-nosotros-slogan">
+      </div>
+      <div class="admin-field">
+        <label>Stat 1 — Número / Símbolo</label>
+        <input type="text" id="ep-stat1-num" placeholder="Ej: 100%">
+      </div>
+      <div class="admin-field">
+        <label>Stat 1 — Descripción</label>
+        <input type="text" id="ep-stat1-label" placeholder="Ej: Estilo propio">
+      </div>
+      <div class="admin-field">
+        <label>Stat 2 — Número / Símbolo</label>
+        <input type="text" id="ep-stat2-num" placeholder="Ej: ★">
+      </div>
+      <div class="admin-field">
+        <label>Stat 2 — Descripción</label>
+        <input type="text" id="ep-stat2-label" placeholder="Ej: Tendencias actuales">
+      </div>
+    </div>
+
+    <!-- TAB: CONTACTO -->
+    <div class="ep-panel" id="ep-panel-contacto" style="display:none">
+      <div class="admin-field">
+        <label>Número de WhatsApp <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(sin +, sin espacios · ej: 5491123456789)</span></label>
+        <input type="text" id="ep-whatsapp" placeholder="Ej: 5491123456789">
+        <p style="margin:4px 0 0;font-size:11px;color:var(--text-soft)">⚠ Al guardar, todos los botones y links de WhatsApp de la página se actualizan automáticamente.</p>
+      </div>
+      <div class="admin-field">
+        <label>Número visible (solo estético, ej: +54 351 123-4567)</label>
+        <input type="text" id="ep-wa-display" placeholder="+54 351 123-4567">
+      </div>
+      <div class="admin-field">
+        <label>Mensaje al contactar (botones genéricos)</label>
+        <textarea id="ep-wa-texto" rows="2"></textarea>
+      </div>
+      <div class="admin-field">
+        <label>Mensaje al consultar por un producto</label>
+        <textarea id="ep-wa-texto-producto" rows="2" placeholder="Usá {nombre} para incluir el nombre del producto"></textarea>
+      </div>
+      <div class="admin-field" style="margin-top:1.4rem;border-top:1px solid var(--detalles);padding-top:1.4rem">
+        <label>Usuario de Instagram <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(sin @)</span></label>
+        <input type="text" id="ep-instagram" placeholder="Ej: alma_joyas1">
+        <p style="margin:4px 0 0;font-size:11px;color:var(--text-soft)">⚠ Al guardar, todos los links de Instagram de la página se actualizan automáticamente.</p>
+      </div>
+      <div class="admin-field">
+        <label>Etiqueta de contacto</label>
+        <input type="text" id="ep-contacto-label" placeholder="Ej: Hablemos">
+      </div>
+      <div class="admin-field">
+        <label>Título de contacto</label>
+        <input type="text" id="ep-contacto-titulo" placeholder="Ej: ¿Buscás algo especial?">
+      </div>
+      <div class="admin-field">
+        <label>Título del bloque CTA</label>
+        <input type="text" id="ep-cta-titulo" placeholder="">
+      </div>
+      <div class="admin-field">
+        <label>Texto del bloque CTA</label>
+        <textarea id="ep-cta-parrafo" rows="3"></textarea>
+      </div>
+      <div class="admin-field">
+        <label>Texto del botón CTA</label>
+        <input type="text" id="ep-cta-boton" placeholder="Ej: Escribinos por WhatsApp">
+      </div>
+    </div>
+
+    <div class="admin-modal-btns" style="margin-top:1.6rem">
+      <button class="btn-cancelar" onclick="document.getElementById('edit-pagina-modal').classList.remove('active')">Cancelar</button>
+      <button class="btn-guardar" onclick="guardarEditarPagina()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LOGIN ADMIN -->
+<div class="login-modal-overlay" id="login-modal">
+  <div class="login-modal">
+    <div class="login-modal-logo" id="login-modal-logo"></div>
+    <h2>Acceso Administrador</h2>
+    <p class="login-subtitle">Ingresá tus credenciales para continuar</p>
+    <div class="login-field">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="admin@ejemplo.com" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>Contraseña</label>
+      <div class="login-password-wrapper">
+        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+        <button type="button" class="login-eye-btn" onclick="toggleLoginPassword()" title="Mostrar/ocultar contraseña" id="login-eye-btn">
+          <svg id="eye-icon-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          <svg id="eye-icon-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18" style="display:none">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+            <line x1="1" y1="1" x2="23" y2="23"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <p class="login-error" id="login-error"></p>
+    <p class="login-forgot"><a href="#" onclick="mostrarAyudaContrasena(event)">¿Olvidaste tu contraseña?</a></p>
+    <button class="login-btn" id="login-btn" onclick="submitLogin()">Ingresar</button>
+    <button class="login-cancel" onclick="cancelarLogin()">Cancelar</button>
+  </div>
+</div>
+
+</body>
+</html>
