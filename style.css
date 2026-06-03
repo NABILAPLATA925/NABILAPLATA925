@@ -61,12 +61,12 @@
   .hc2{width:350px;height:350px;background:var(--detalles);bottom:-80px;left:-60px}
   .hc3{width:200px;height:200px;background:var(--gold);top:40%;left:10%;opacity:0.08}
   .hero-content{position:relative;z-index:2;text-align:center;max-width:700px;padding:2rem}
-  .hero-eyebrow{font-size:11px;letter-spacing:5px;text-transform:uppercase;color:var(--principal);margin-bottom:1.5rem;opacity:0;transform:translateY(14px);transition:opacity .72s ease, transform .72s ease}
+  .hero-eyebrow{font-size:11px;letter-spacing:5px;text-transform:uppercase;color:var(--principal);margin-bottom:3rem;opacity:0;transform:translateY(14px);transition:opacity .72s ease, transform .72s ease}
   .hero-title{font-family:var(--font-titulo-pagina),serif;font-size:clamp(52px,8vw,88px);font-weight:300;line-height:1.05;color:var(--text);margin-bottom:1.2rem;opacity:0;transform:translateY(14px);transition:opacity .72s ease, transform .72s ease}
   .hero-title em{color:var(--principal);font-style:italic}
-  .hero-title-img-wrap{background:transparent;margin-bottom:1.2rem;opacity:0;transform:translateY(14px);transition:opacity .72s ease, transform .72s ease}
+  .hero-title-img-wrap{background:transparent;margin-bottom:3rem;opacity:0;transform:translateY(14px);transition:opacity .72s ease, transform .72s ease}
   .hero-title-img-wrap img{background:transparent;mix-blend-mode:multiply}
-  .hero-subtitle{font-size:15px;font-weight:300;color:var(--text-soft);letter-spacing:1px;line-height:1.8;margin-bottom:2.5rem;opacity:0;transform:translateY(14px);transition:opacity .72s ease, transform .72s ease}
+  .hero-subtitle{font-size:15px;font-weight:300;color:var(--text-soft);letter-spacing:1px;line-height:1.8;margin-bottom:3.5rem;opacity:0;transform:translateY(14px);transition:opacity .72s ease, transform .72s ease}
   .hero-cta{display:inline-flex;gap:1rem;flex-wrap:wrap;justify-content:center;opacity:0;transform:translateY(14px);transition:opacity .72s ease, transform .72s ease}
   .btn-primary{padding:14px 36px;background:var(--principal);color:white;border:none;font-family:var(--font-cuerpo);font-size:12px;letter-spacing:2.5px;text-transform:uppercase;cursor:pointer;border-radius:2px;transition:background .2s}
   .btn-primary:hover{background:var(--principal)}

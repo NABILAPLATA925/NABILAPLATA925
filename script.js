@@ -492,11 +492,10 @@ function animarHero(){
   const DELAY_START = 80;  // ms antes de arrancar
 
   function disparar(){
-    let offset = DELAY_START;
-    elementos.forEach(el => {
-      if(el.style.display === 'none') return;
-      setTimeout(() => el.classList.add('hero-visible'), offset);
-      offset += DELAY_BASE;
+    // Filtramos primero los visibles para que el offset sea continuo sin huecos
+    const visibles = elementos.filter(el => el.style.display !== 'none');
+    visibles.forEach((el, i) => {
+      setTimeout(() => el.classList.add('hero-visible'), DELAY_START + i * DELAY_BASE);
     });
   }
 
