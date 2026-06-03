@@ -97,10 +97,92 @@
   .hero-title-img-wrap img{background:transparent;mix-blend-mode:multiply}
   .hero-subtitle{font-size:15px;font-weight:300;color:var(--text-soft);letter-spacing:1px;line-height:1.8;margin-bottom:3.5rem;opacity:0;transform:translateY(14px);transition:opacity .72s ease, transform .72s ease}
   .hero-cta{display:inline-flex;gap:1rem;flex-wrap:wrap;justify-content:center;opacity:0;transform:translateY(14px);transition:opacity .72s ease, transform .72s ease}
-  .btn-primary{padding:14px 36px;background:var(--principal);color:white;border:none;font-family:var(--font-cuerpo);font-size:12px;letter-spacing:2.5px;text-transform:uppercase;cursor:pointer;border-radius:2px;transition:background .2s}
-  .btn-primary:hover{background:var(--principal)}
-  .btn-outline{padding:14px 36px;background:transparent;color:var(--principal);border:1px solid var(--detalles);font-family:var(--font-cuerpo);font-size:12px;letter-spacing:2.5px;text-transform:uppercase;cursor:pointer;border-radius:2px;transition:all .2s}
-  .btn-outline:hover{background:var(--secciones)}
+  .btn-primary{
+    padding:14px 36px;
+    background: linear-gradient(160deg, #de6f87 0%, var(--principal) 45%, #b84a64 100%);
+    color:white;
+    border:none;
+    font-family:var(--font-cuerpo);
+    font-size:12px;
+    letter-spacing:2.5px;
+    text-transform:uppercase;
+    cursor:pointer;
+    border-radius:4px;
+    position:relative;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.25) inset,
+      0 6px 16px rgba(209,91,118,0.45),
+      0 2px 4px rgba(209,91,118,0.3),
+      0 1px 0 #a03e58;
+    transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+  }
+  .btn-primary::after{
+    content:'';
+    position:absolute;
+    inset:0;
+    border-radius:4px;
+    background:linear-gradient(to bottom, rgba(255,255,255,0.12) 0%, transparent 60%);
+    pointer-events:none;
+  }
+  .btn-primary:hover{
+    transform: translateY(-2px);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.25) inset,
+      0 10px 24px rgba(209,91,118,0.5),
+      0 4px 8px rgba(209,91,118,0.35),
+      0 1px 0 #a03e58;
+    filter: brightness(1.07);
+  }
+  .btn-primary:active{
+    transform: translateY(1px);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.15) inset,
+      0 2px 8px rgba(209,91,118,0.3),
+      0 1px 0 #a03e58;
+  }
+  .btn-outline{
+    padding:14px 36px;
+    background: linear-gradient(160deg, rgba(255,255,255,0.9) 0%, rgba(252,234,239,0.6) 100%);
+    color:var(--principal);
+    border:1px solid var(--detalles);
+    font-family:var(--font-cuerpo);
+    font-size:12px;
+    letter-spacing:2.5px;
+    text-transform:uppercase;
+    cursor:pointer;
+    border-radius:4px;
+    position:relative;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.9) inset,
+      0 4px 12px rgba(209,91,118,0.12),
+      0 1px 3px rgba(0,0,0,0.06),
+      0 1px 0 rgba(209,91,118,0.15);
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+  .btn-outline::after{
+    content:'';
+    position:absolute;
+    inset:0;
+    border-radius:4px;
+    background:linear-gradient(to bottom, rgba(255,255,255,0.5) 0%, transparent 60%);
+    pointer-events:none;
+  }
+  .btn-outline:hover{
+    background: linear-gradient(160deg, #fff 0%, var(--secciones) 100%);
+    transform: translateY(-2px);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.9) inset,
+      0 8px 20px rgba(209,91,118,0.2),
+      0 2px 6px rgba(0,0,0,0.07),
+      0 1px 0 rgba(209,91,118,0.2);
+    border-color: var(--principal);
+  }
+  .btn-outline:active{
+    transform: translateY(1px);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.7) inset,
+      0 1px 4px rgba(209,91,118,0.1);
+  }
   .hero-scroll{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%) translateY(10px);display:flex;flex-direction:column;align-items:center;gap:8px;opacity:0;transition:opacity .72s ease, transform .72s ease;cursor:pointer}
   /* Clase que activa la visibilidad de cada elemento hero */
   .hero-visible{opacity:1 !important;transform:translateY(0) !important}
@@ -200,8 +282,53 @@
   .modal-divider{width:40px;height:1px;background:var(--detalles);margin:1.5rem 0}
   .modal-desc{font-size:14px;line-height:1.9;color:var(--text-soft);font-weight:300;margin-bottom:2.5rem}
   .modal-close{position:absolute;top:1.5rem;right:1.5rem;width:36px;height:36px;border:0.5px solid var(--detalles);background:white;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text-soft)}
-  .whatsapp-btn{display:inline-flex;align-items:center;gap:10px;padding:14px 28px;background:#25D366;color:white;border:none;font-family:var(--font-cuerpo);font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;border-radius:2px;text-decoration:none;transition:background .2s}
-  .whatsapp-btn:hover{background:#1ebe5d}
+  .whatsapp-btn{
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    padding:14px 28px;
+    background: linear-gradient(160deg, #34e07a 0%, #25D366 45%, #1aab54 100%);
+    color:white;
+    border:none;
+    font-family:var(--font-cuerpo);
+    font-size:12px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    cursor:pointer;
+    border-radius:4px;
+    text-decoration:none;
+    position:relative;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.25) inset,
+      0 6px 16px rgba(37,211,102,0.4),
+      0 2px 4px rgba(37,211,102,0.25),
+      0 1px 0 #14894a;
+    transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+  }
+  .whatsapp-btn::after{
+    content:'';
+    position:absolute;
+    inset:0;
+    border-radius:4px;
+    background:linear-gradient(to bottom, rgba(255,255,255,0.14) 0%, transparent 60%);
+    pointer-events:none;
+  }
+  .whatsapp-btn:hover{
+    transform: translateY(-2px);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.25) inset,
+      0 10px 24px rgba(37,211,102,0.5),
+      0 4px 8px rgba(37,211,102,0.3),
+      0 1px 0 #14894a;
+    filter: brightness(1.06);
+  }
+  .whatsapp-btn:active{
+    transform: translateY(1px);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.15) inset,
+      0 2px 8px rgba(37,211,102,0.3),
+      0 1px 0 #14894a;
+  }
   .whatsapp-btn svg{width:18px;height:18px;fill:white;flex-shrink:0}
 
   /* CONTACTO */
@@ -215,8 +342,54 @@
   .contact-item a{font-size:14px;color:var(--text-soft);text-decoration:none}
   .contact-item a:hover{color:var(--principal)}
   .social-strip{display:flex;gap:1rem;margin-top:2.5rem}
-  .social-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border:0.5px solid var(--detalles);background:white;font-family:var(--font-cuerpo);font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;border-radius:2px;color:var(--text-soft);text-decoration:none;transition:all .2s}
-  .social-btn:hover{background:var(--secciones);color:var(--principal)}
+  .social-btn{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:11px 22px;
+    border:1px solid var(--detalles);
+    background: linear-gradient(160deg, rgba(255,255,255,0.95) 0%, rgba(252,234,239,0.5) 100%);
+    font-family:var(--font-cuerpo);
+    font-size:11px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    cursor:pointer;
+    border-radius:4px;
+    color:var(--text-soft);
+    text-decoration:none;
+    position:relative;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.9) inset,
+      0 4px 12px rgba(209,91,118,0.1),
+      0 1px 3px rgba(0,0,0,0.06),
+      0 1px 0 rgba(209,91,118,0.12);
+    transition: transform .18s ease, box-shadow .18s ease, color .18s ease, border-color .18s ease;
+  }
+  .social-btn::after{
+    content:'';
+    position:absolute;
+    inset:0;
+    border-radius:4px;
+    background:linear-gradient(to bottom, rgba(255,255,255,0.45) 0%, transparent 55%);
+    pointer-events:none;
+  }
+  .social-btn:hover{
+    background: linear-gradient(160deg, #fff 0%, var(--secciones) 100%);
+    color:var(--principal);
+    border-color:var(--principal);
+    transform: translateY(-2px);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.9) inset,
+      0 8px 20px rgba(209,91,118,0.2),
+      0 2px 6px rgba(0,0,0,0.07),
+      0 1px 0 rgba(209,91,118,0.2);
+  }
+  .social-btn:active{
+    transform: translateY(1px);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.7) inset,
+      0 1px 4px rgba(209,91,118,0.1);
+  }
   .social-btn svg{width:14px;height:14px}
   .contacto-cta{background:white;padding:3rem;border-radius:4px}
   .contacto-cta h3{font-family:var(--font-titulo-seccion),serif;font-size:30px;font-weight:300;color:var(--text);margin-bottom:1rem}
