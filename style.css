@@ -61,7 +61,7 @@
     z-index: 3;
   }
   .hero-content {
-    margin-top: 40px; /* Compensa un poco el espacio del NAV */
+    margin-top: 30px; /* Compensa un poco el espacio del NAV */
     display: flex;
     flex-direction: column;
     align-items: center;
