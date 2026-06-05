@@ -31,6 +31,7 @@ const productosDefault = SITE_CONFIG.productosDefault;
 //  ESTADO GLOBAL
 // ════════════════════════════════════════════════════════
 let productos = [];
+let carrito = []; // Variable global para guardar el pedido
 let posCarrusel = {};       // { catId: posicion }
 let carruselProds = {};     // { catId: [productos del carrusel] }
 
@@ -829,6 +830,7 @@ function openModal(p){
   const msgProducto = template.replace('{nombre}', p.nombre);
   document.getElementById('modal-wa').href = `https://wa.me/${SITE_CONFIG.whatsapp}?text=${encodeURIComponent(msgProducto)}`;
   document.getElementById('modal').classList.add('active');
+  document.getElementById('modal-add-cart').onclick = () => agregarAlCarrito(p);
   document.body.style.overflow = 'hidden';
 }
 
@@ -1825,3 +1827,136 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, { passive: true });
 })();
+
+
+
+// ════════════════════════════════════════════════════════
+//  CARRITO DE COMPRAS
+// ════════════════════════════════════════════════════════
+
+function toggleCarrito() {
+  const overlay = document.getElementById('cart-overlay');
+  overlay.classList.toggle('active');
+  if (overlay.classList.contains('active')) {
+    document.body.style.overflow = 'hidden';
+    actualizarCarritoUI();
+  } else {
+    document.body.style.overflow = '';
+  }
+}
+
+function agregarAlCarrito(producto) {
+  if (!producto.precio || producto.precio.trim() === '') {
+    mostrarToastError('Este producto no tiene precio asignado.');
+    return;
+  }
+  
+  // Revisamos si el producto ya está en el carrito
+  const existente = carrito.find(p => p.id === producto.id);
+  
+  if (existente) {
+    // Si existe, solo sumamos 1 a la cantidad
+    existente.cantidad += 1;
+  } else {
+    // Si no existe, lo agregamos con cantidad inicial de 1
+    carrito.push({ ...producto, cantidad: 1 });
+  }
+
+  actualizarCarritoUI();
+  mostrarToast('Producto agregado al carrito 🛒');
+  closeModal({ target: document.getElementById('modal') }); 
+}
+
+// Nueva función para sumar/restar desde el carrito
+function cambiarCantidad(index, delta) {
+  if (carrito[index]) {
+    carrito[index].cantidad += delta;
+    // Si la cantidad llega a 0, se elimina del carrito
+    if (carrito[index].cantidad <= 0) {
+      eliminarDelCarrito(index);
+    } else {
+      actualizarCarritoUI();
+    }
+  }
+}
+
+function eliminarDelCarrito(index) {
+  carrito.splice(index, 1);
+  actualizarCarritoUI();
+}
+
+function actualizarCarritoUI() {
+  const itemsContainer = document.getElementById('cart-items');
+  const countBadge = document.getElementById('cart-count');
+  const totalEl = document.getElementById('cart-total-price');
+  
+  // Contamos el total de unidades (no solo la cantidad de productos distintos)
+  let totalUnidades = 0;
+  carrito.forEach(p => totalUnidades += p.cantidad);
+
+  // Burbuja con el contador en el menú superior
+  if (totalUnidades > 0) {
+    countBadge.style.display = 'flex';
+    countBadge.textContent = totalUnidades;
+  } else {
+    countBadge.style.display = 'none';
+  }
+
+  // Lista vacía
+  if (carrito.length === 0) {
+    itemsContainer.innerHTML = '<p class="cart-empty">Tu carrito está vacío.<br><br>¡Agregá algunos productos!</p>';
+    totalEl.textContent = '$0';
+    return;
+  }
+
+  // Renderizar items y calcular total
+  let html = '';
+  let total = 0;
+
+  carrito.forEach((p, idx) => {
+    const precioNum = Number((p.precio || '0').replace(/\D/g, ''));
+    const subtotal = precioNum * p.cantidad;
+    total += subtotal;
+    
+    html += `
+      <div class="cart-item">
+        <img src="${p.img}" class="cart-item-img">
+        <div class="cart-item-info">
+          <div class="cart-item-title">${p.nombre}</div>
+          <div class="cart-item-price">${p.precio} c/u</div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+            <button onclick="cambiarCantidad(${idx}, -1)" style="width:24px; height:24px; border:1px solid var(--detalles); background:transparent; cursor:pointer; border-radius:4px; display:flex; align-items:center; justify-content:center; color:var(--text); font-weight:bold; transition: background 0.2s;">-</button>
+            <span style="font-size:13px; font-weight:600; width:18px; text-align:center; color:var(--text);">${p.cantidad}</span>
+            <button onclick="cambiarCantidad(${idx}, 1)" style="width:24px; height:24px; border:1px solid var(--detalles); background:transparent; cursor:pointer; border-radius:4px; display:flex; align-items:center; justify-content:center; color:var(--text); font-weight:bold; transition: background 0.2s;">+</button>
+          </div>
+        </div>
+        <button class="cart-item-remove" onclick="eliminarDelCarrito(${idx})" title="Eliminar del carrito">✕</button>
+      </div>
+    `;
+  });
+
+  itemsContainer.innerHTML = html;
+  totalEl.textContent = '$' + total.toLocaleString('es-AR');
+}
+
+function enviarPedidoWa() {
+  if (carrito.length === 0) {
+    mostrarToastError('El carrito está vacío.');
+    return;
+  }
+
+  let lineas = [`Hola! Como estas? Me gustaria hacer el siguiente pedido:`];
+  let total = 0;
+
+  carrito.forEach((p) => {
+    const precioNum = Number((p.precio || '0').replace(/\D/g, ''));
+    total += precioNum * p.cantidad;
+    lineas.push(`• ${p.cantidad}x *${p.nombre}* - ${p.precio} c/u `);
+  });
+
+  lineas.push(`*TOTAL A ABONAR: $${total.toLocaleString('es-AR')}*`);
+
+  const mensaje = lineas.join('\n');
+  const url = `https://wa.me/${SITE_CONFIG.whatsapp}?text=${encodeURIComponent(mensaje)}`;
+  window.open(url, '_blank');
+}
