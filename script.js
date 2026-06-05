@@ -441,6 +441,18 @@ async function inicializar(){
     document.body.classList.add('admin-mode');
     document.getElementById('admin-bar').style.display = 'flex';
   }
+
+  // CAMBIO 2 — mostrar caché inmediatamente si existe
+  const cache = localStorage.getItem('productos_cache');
+  if (cache) {
+    try {
+      productos = JSON.parse(cache);
+      const loadingEl = document.getElementById('carrusel-loading');
+      if (loadingEl) loadingEl.style.display = 'none';
+      buildAllCarousels();
+    } catch(e) {}
+  }
+
   try {
     productos = await cargarDesdeFirebase();
     productos.forEach((p, i) => {
@@ -448,27 +460,44 @@ async function inicializar(){
         p.id = 'prod_' + Date.now() + '_' + i + '_' + Math.random().toString(36).slice(2,8);
       }
     });
+    // CAMBIO 1 — guardar en caché
+    try {
+      localStorage.setItem('productos_cache', JSON.stringify(productos));
+    } catch(e) {}
     //if(ADMIN_MODE){
     //  await guardarEnFirebase();
     //}
+
+    // CAMBIO 3 — redibujar solo si Firebase trajo algo distinto al caché
+    if (cache !== JSON.stringify(productos)) {
+      const loadingEl = document.getElementById('carrusel-loading');
+      if (loadingEl) loadingEl.style.display = 'none';
+      buildAllCarousels();
+    }
+
   } catch(err){
     console.warn('Primer intento fallido, reintentando...', err);
     try {
       await new Promise(r => setTimeout(r, 1200));
       productos = await cargarDesdeFirebase();
+      try {
+        localStorage.setItem('productos_cache', JSON.stringify(productos));
+      } catch(e) {}
     } catch(err2){
       console.error('Error cargando Firebase:', err2);
       productos = productosDefault.map(p => ({...p}));
     }
   }
-  document.getElementById('carrusel-loading').style.display = 'none';
+
+  const loadingEl = document.getElementById('carrusel-loading');
+  if (loadingEl) loadingEl.style.display = 'none';
   buildAllCarousels();
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
   await cargarConfigEditable();
   applyConfig();
-  inicializar();
+  await inicializar();      
   if(ADMIN_REQUEST){ pedirLoginAdmin(); }
   animarHero();
 });
