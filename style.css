@@ -1110,9 +1110,11 @@
     grid-template-columns: 1fr;
     max-height: 92vh;
     border-radius: 8px;
+    height: 92vh;       
+    overflow: hidden; 
   }
-  .modal-img { min-height: 220px; }
-  .modal-body { padding: 1.6rem; }
+  .modal-img { height: 240px; min-height: unset; flex-shrink: 0; overflow: hidden; }
+  .modal-body { padding: 1.6rem; overflow-y: auto; flex: 1; }
   .modal-title { font-size: 26px; }
   .modal-desc { font-size: 13px; }
   .whatsapp-btn { width: 100%; justify-content: center; }
@@ -1126,6 +1128,7 @@
     justify-content: center !important;
     align-items: center !important;
     margin-bottom: 0 !important;
+    font-size: 13px !important;
   }
   .modal-body #modal-add-cart {
     margin-bottom: 10px !important;
