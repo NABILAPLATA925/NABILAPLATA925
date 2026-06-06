@@ -1131,11 +1131,13 @@
     align-items: center !important;
     margin-bottom: 0 !important;
     font-size: 11px !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
   }
   .modal-body #modal-add-cart {
     margin-bottom: 10px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
   }
 
   /* ── CONTACTO ─────────────────────────────────── */
