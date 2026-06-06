@@ -523,7 +523,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     cargarConfigEditable().then(data => {
       if (data) {
         try { localStorage.setItem('config_cache', JSON.stringify(data)); } catch(e) {}
+        const teniaLogoAntes = !!SITE_CONFIG._heroLogoImg;
         applyConfig();
+        // Si llegó el logo por primera vez, reanimar el hero
+        if (!teniaLogoAntes && SITE_CONFIG._heroLogoImg) {
+          animarHero();
+        }
       }
     }),
     inicializar()
