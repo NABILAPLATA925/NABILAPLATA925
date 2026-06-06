@@ -1121,7 +1121,7 @@
   .modal-desc { font-size: 13px; }
   .whatsapp-btn { width: 100%; justify-content: center; align-items: center; display: flex; }
 
-  #modal-btns #modal-add-cart {
+  #modal-add-cart {
     width: 100% !important;
     box-sizing: border-box !important;
     display: flex !important;
@@ -1132,9 +1132,7 @@
     font-size: 11px !important;
     line-height: 1 !important;  /* ← agregá esta línea */
   }
-
-
-  #modal-btns #modal-wa {
+  #modal-wa {
     width: 100% !important;
     box-sizing: border-box !important;
     display: flex !important;
