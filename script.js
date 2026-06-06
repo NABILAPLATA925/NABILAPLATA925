@@ -495,9 +495,35 @@ async function inicializar(){
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await cargarConfigEditable();
+  // Aplicar config desde caché inmediatamente si existe
+  const configCache = localStorage.getItem('config_cache');
+  if (configCache) {
+    try {
+      const data = JSON.parse(configCache);
+      if(data.rubro)         SITE_CONFIG.rubro         = data.rubro;
+      if(data.ubicacion)     SITE_CONFIG.ubicacion      = data.ubicacion;
+      if(data.heroSubtitulo) SITE_CONFIG.heroSubtitulo  = data.heroSubtitulo;
+      if(data.nosotros)      SITE_CONFIG.nosotros        = { ...SITE_CONFIG.nosotros, ...data.nosotros };
+      if(data.whatsapp)      SITE_CONFIG.whatsapp        = data.whatsapp;
+      if(data.instagram)     SITE_CONFIG.instagram       = data.instagram;
+      if(data.contacto)      SITE_CONFIG.contacto        = { ...SITE_CONFIG.contacto, ...data.contacto };
+      if(data.nosotrosImg)   SITE_CONFIG._nosotrosImg    = data.nosotrosImg;
+      if(data.heroLogoImg)   SITE_CONFIG._heroLogoImg    = data.heroLogoImg;
+      if(data.navLogoImg)    SITE_CONFIG._navLogoImg     = data.navLogoImg;
+    } catch(e) {}
+  }
   applyConfig();
-  await inicializar();      
+
+  // Cargar Firebase en paralelo (config + productos al mismo tiempo)
+  await Promise.all([
+    cargarConfigEditable().then(data => {
+      if (data) {
+        try { localStorage.setItem('config_cache', JSON.stringify(data)); } catch(e) {}
+        applyConfig();
+      }
+    }),
+    inicializar()
+  ]);      
   if(ADMIN_REQUEST){ pedirLoginAdmin(); }
   animarHero();
 });
@@ -1546,6 +1572,7 @@ async function cargarConfigEditable(){
       if(data.nosotrosImg)      SITE_CONFIG._nosotrosImg     = data.nosotrosImg;
       if(data.heroLogoImg)      SITE_CONFIG._heroLogoImg     = data.heroLogoImg;
       if(data.navLogoImg)       SITE_CONFIG._navLogoImg      = data.navLogoImg;
+      return data;
     }
   } catch(err){
     console.warn('No se pudo cargar configEditable:', err);
