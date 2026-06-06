@@ -274,14 +274,14 @@
   /* MODAL PRODUCTO */
   .modal-overlay{position:fixed;inset:0;background:rgba(42,18,24,0.7);z-index:200;display:none;align-items:center;justify-content:center;padding:2rem}
   .modal-overlay.active{display:flex}
-  .modal{background:var(--white);max-width:900px;width:100%;max-height:90vh;overflow-y:auto;border-radius:4px;display:grid;grid-template-columns:1fr 1fr}
+  .modal{background:var(--white);max-width:900px;width:100%;max-height:90vh;overflow-y:auto;border-radius:4px;display:grid;grid-template-columns:1fr 1fr;position:relative}
   .modal-img{min-height:400px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
   .modal-body{padding:3rem}
   .modal-tipo{font-size:10px;letter-spacing:4px;text-transform:uppercase;color:var(--principal);margin-bottom:1rem}
   .modal-title{font-family:var(--font-titulo-producto),serif;font-size:38px;font-weight:300;color:var(--text);line-height:1.2;margin-bottom:1rem}
   .modal-divider{width:40px;height:1px;background:var(--detalles);margin:1.5rem 0}
   .modal-desc{font-size:14px;line-height:1.9;color:var(--text-soft);font-weight:300;margin-bottom:2.5rem}
-  .modal-close{position:absolute;top:1.5rem;right:1.5rem;width:36px;height:36px;border:0.5px solid var(--detalles);background:white;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text-soft)}
+  .modal-close{position:absolute;top:1.5rem;right:1.5rem;width:36px;height:36px;border:0.5px solid var(--detalles);background:white;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text-soft);z-index:10}
   .whatsapp-btn{
     display:inline-flex;
     align-items:center;
@@ -1116,6 +1116,20 @@
   .modal-title { font-size: 26px; }
   .modal-desc { font-size: 13px; }
   .whatsapp-btn { width: 100%; justify-content: center; }
+
+  /* ── BOTONES DEL MODAL EN MOBILE ─────────────── */
+  #modal-add-cart,
+  #modal-wa {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    margin-bottom: 0 !important;
+  }
+  .modal-body #modal-add-cart {
+    margin-bottom: 10px !important;
+  }
 
   /* ── CONTACTO ─────────────────────────────────── */
   .contacto-grid {
