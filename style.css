@@ -1131,6 +1131,8 @@
     align-items: center !important;
     margin-bottom: 0 !important;
     font-size: 11px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
   }
   .modal-body #modal-add-cart {
     margin-bottom: 10px !important;
