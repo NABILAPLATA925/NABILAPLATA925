@@ -1109,14 +1109,14 @@
   .modal {
     grid-template-columns: 1fr;
     max-height: 95vh;
-    /*height: 95vh;*/
     border-radius: 8px;       
-    overflow: hidden; 
+    overflow-y: auto;
+    overflow-x: hidden; 
   }
   .modal-img { height: 290px; min-height: unset; flex-shrink: 0; overflow: hidden; position: relative; }
   .modal-img-carousel { min-height: unset; height: 100%; }
   .modal-carousel-dots { bottom: 8px; z-index: 5; }
-  .modal-body { padding: 1.6rem 1.4rem; overflow-y: auto; flex: 1; }
+  .modal-body { padding: 1.6rem; overflow-y: auto; flex: 1; }
   .modal-title { font-size: 26px; }
   .modal-desc { font-size: 13px; }
   .whatsapp-btn { width: 100%; justify-content: center; }
