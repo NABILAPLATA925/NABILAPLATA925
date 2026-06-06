@@ -1122,19 +1122,22 @@
   .whatsapp-btn { width: 100%; justify-content: center; }
 
   /* ── BOTONES DEL MODAL EN MOBILE ─────────────── */
-  #modal-add-cart,
-  #modal-wa {
-    display: block !important;
+  #modal-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+  #modal-btns #modal-add-cart,
+  #modal-btns #modal-wa {
     width: 100% !important;
     box-sizing: border-box !important;
-    padding: 14px 16px !important;
-    margin-bottom: 0 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin: 0 !important;
     font-size: 11px !important;
-    text-align: center !important;
-    border-radius: 4px !important;
-  }
-  .modal-body #modal-add-cart {
-    margin-bottom: 10px !important;
   }
 
   /* ── CONTACTO ─────────────────────────────────── */
