@@ -1038,11 +1038,12 @@
   /* ── NAV ──────────────────────────────────────── */
   nav { padding: 0 1rem; }
   .nav-links { display: none; }
-  .nav-inner { height: 56px; }
-  .nav-logo { font-size: 13px !important; letter-spacing: 0px !important; }
-  .nav-logo-img { height: 0.95em !important; width: 0.95em !important; }
+  .nav-inner { height: 56px; justify-content: flex-start; gap: 10px; }
+  .nav-logo { font-size: 17px !important; letter-spacing: 2px !important; }
+  .nav-logo-img { height: 1.0em !important; width: 1.0em !important; }
+  .nav-social { margin-left: auto; }
   .nav-search-btn { padding: 5px 7px !important; gap: 0 !important; }
-  .nav-search-btn span { display: none; } /* oculta el texto "Buscar", deja solo el ícono */
+  .nav-search-btn span { display: none; }
 
   /* Grilla 2x2 en mobile */
   .carrusel-grupo-mobile {
