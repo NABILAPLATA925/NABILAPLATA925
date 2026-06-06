@@ -1108,7 +1108,7 @@
   /* ── MODAL PRODUCTO ───────────────────────────── */
   .modal {
     grid-template-columns: 1fr;
-    max-height: 90vh;
+    max-height: 95vh;
     /*height: 95vh;*/
     border-radius: 8px;       
     overflow: hidden; 
