@@ -1121,9 +1121,29 @@
   .modal-desc { font-size: 13px; }
   .whatsapp-btn { width: 100%; justify-content: center; }
 
-  #modal-btns #modal-add-cart,
+  #modal-btns #modal-add-cart {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    font-size: 11px !important;
+    line-height: 1 !important;  /* ← agregá esta línea */
+  }
+
+
   #modal-btns #modal-wa {
-    line-height: 1 !important; 
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    font-size: 9px !important;
+    line-height: 1 !important;  /* ← agregá esta línea */
   }
 
   /* ── CONTACTO ─────────────────────────────────── */
