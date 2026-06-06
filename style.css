@@ -1124,20 +1124,17 @@
   /* ── BOTONES DEL MODAL EN MOBILE ─────────────── */
   #modal-add-cart,
   #modal-wa {
+    display: block !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: center !important;
+    padding: 14px 16px !important;
     margin-bottom: 0 !important;
     font-size: 11px !important;
-    padding-left: 16px !important;
-    padding-right: 16px !important;
+    text-align: center !important;
+    border-radius: 4px !important;
   }
   .modal-body #modal-add-cart {
     margin-bottom: 10px !important;
-    padding-left: 16px !important;
-    padding-right: 16px !important;
   }
 
   /* ── CONTACTO ─────────────────────────────────── */
