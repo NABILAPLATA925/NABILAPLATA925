@@ -227,15 +227,22 @@ async function cargarDesdeFirebase(){
       productosOcultos  = Array.isArray(m.productosOcultos)  ? m.productosOcultos  : [];
       // Categorías conocidas vienen del meta para no necesitar un query extra
       if(Array.isArray(m.categorias) && m.categorias.length){
-        // Cargar primer batch por cada categoría en paralelo
-        const batches = await Promise.all(
-          m.categorias.map(cat => cargarBatchCategoria(cat))
-        );
-        batches.forEach((prods, i) => {
+        // Cargar primer batch por cada categoría + "todos" en paralelo
+        const [batchesTodo, batchTodos] = await Promise.all([
+          Promise.all(m.categorias.map(cat => cargarBatchCategoria(cat))),
+          cargarBatchTodos()
+        ]);
+        batchesTodo.forEach(prods => {
           prods.forEach(p => {
             if(!productos.find(x => x.id === p.id)) productos.push(p);
           });
         });
+        // Los de "todos" también al array global (pueden ser los mismos, sin duplicar)
+        batchTodos.forEach(p => {
+          if(!productos.find(x => x.id === p.id)) productos.push(p);
+        });
+        // Guardar el primer batch de "todos" separado para buildAllCarousels
+        SITE_CONFIG._primerBatchTodos = batchTodos;
         return productos;
       }
     } else {
@@ -272,6 +279,26 @@ async function cargarBatchCategoria(cat, lastDoc = null){
 
   return prods;
 }
+
+
+// Carga un batch para el carrusel "Todos los productos" (sin filtro de categoría)
+async function cargarBatchTodos(lastDoc = null){
+  const BATCH = (SITE_CONFIG.paginacionBatch || 8);
+  let q = PRODS_COL.orderBy('nombre').limit(BATCH);
+  if(lastDoc) q = q.startAfter(lastDoc);
+
+  const snap = await q.get({ source: 'server' });
+  const docs  = snap.docs;
+  const prods = docs.map(d => ({ ...d.data(), id: d.id }));
+
+  if(!paginacion['todos']) paginacion['todos'] = {};
+  paginacion['todos'].lastDoc  = docs.length ? docs[docs.length - 1] : paginacion['todos'].lastDoc;
+  paginacion['todos'].agotado  = docs.length < BATCH;
+  paginacion['todos'].cargando = false;
+
+  return prods;
+}
+
 
 // Carga el siguiente batch para una categoría y agrega al carrusel
 async function cargarMasEnCategoria(cat){
@@ -400,6 +427,74 @@ async function cargarMasEnCategoria(cat){
       if(bNext) bNext.style.display = totalGrupos <= 1 ? 'none' : '';
     }
   }
+}
+
+// Carga el siguiente batch para "Todos los productos" independientemente
+async function cargarMasEnTodos(){
+  const estado = paginacion['todos'];
+  if(!estado || estado.agotado || estado.cargando) return;
+
+  estado.cargando = true;
+  const nuevos = await cargarBatchTodos(estado.lastDoc);
+  if(!nuevos.length){ estado.agotado = true; return; }
+
+  // Agregar a la lista global sin duplicados
+  nuevos.forEach(p => {
+    if(!productos.find(x => x.id === p.id)) productos.push(p);
+  });
+
+  const trackTodos = document.getElementById('carrusel-track-todos');
+  if(!trackTodos) return;
+
+  const nuevosVisibles = nuevos.filter(p => ADMIN_MODE || !productosOcultos.includes(p.id));
+  const cardW = getCardWidth();
+
+  if(esMobile()){
+    const totalAntes = carruselProds['todos']?.length || 0;
+    nuevosVisibles.forEach(p => {
+      if(!carruselProds['todos']) carruselProds['todos'] = [];
+      carruselProds['todos'].push(p);
+    });
+    const restoAntes = totalAntes % 4;
+    if(restoAntes !== 0 && trackTodos.lastChild){
+      trackTodos.removeChild(trackTodos.lastChild);
+    }
+    const aRenderizar = restoAntes !== 0
+      ? carruselProds['todos'].slice(totalAntes - restoAntes)
+      : nuevosVisibles;
+    for(let i = 0; i < aRenderizar.length; i += 4){
+      const grupo = aRenderizar.slice(i, i + 4);
+      const grp = document.createElement('div');
+      grp.className = 'carrusel-grupo-mobile';
+      grp.style.flex = `0 0 ${cardW * 2 + 10}px`;
+      grp.style.display = 'grid';
+      grp.style.gridTemplateColumns = '1fr 1fr';
+      grp.style.gap = '8px';
+      grupo.forEach(p => {
+        const card = crearCard(p, false);
+        card.style.flex = '';
+        card.style.width = '100%';
+        grp.appendChild(card);
+      });
+      trackTodos.appendChild(grp);
+    }
+  } else {
+    nuevosVisibles.forEach(p => {
+      if(!carruselProds['todos']) carruselProds['todos'] = [];
+      carruselProds['todos'].push(p);
+      const card = crearCard(p, false);
+      card.style.flex = `0 0 ${cardW}px`;
+      trackTodos.appendChild(card);
+    });
+  }
+
+  // Actualizar botones
+  const totalTodos  = carruselProds['todos'].length;
+  const totalGrupos = esMobile() ? Math.ceil(totalTodos / 4) : totalTodos;
+  const bPrev = document.getElementById('btn-prev-todos');
+  const bNext = document.getElementById('btn-next-todos');
+  if(bPrev) bPrev.style.display = totalGrupos <= 1 ? 'none' : '';
+  if(bNext) bNext.style.display = totalGrupos <= 1 ? 'none' : '';
 }
 
 // Guarda SOLO la metadata (categorías, orden, visibilidad)
@@ -790,10 +885,12 @@ function buildAllCarousels(){
     });
   });
 
-  if(prodsEnVisibles.length > 0){
+  // "Todos los productos" usa su propio primer batch independiente (con paginación propia)
+  const primerBatchTodos = SITE_CONFIG._primerBatchTodos || prodsEnVisibles;
+  if(primerBatchTodos.length > 0){
     const section = crearSeccionCarrusel('Todos los productos', 'todos', visibles.length > 0);
     container.appendChild(section);
-    toInit.push({ catId: 'todos', catNombre: 'todos', prods: prodsEnVisibles });
+    toInit.push({ catId: 'todos', catNombre: 'todos', prods: primerBatchTodos });
   }
 
   // Construir tracks + eventos
@@ -816,9 +913,6 @@ function buildAllCarousels(){
     });
 
     // ── Lazy load al scroll horizontal ─────────────────────────
-    // Solo para categorías reales (no "todos", que ya está en memoria)
-    if(catNombre === 'todos') return;
-
     const outer = track.closest('.carrusel-track-outer');
     if(!outer) return;
 
@@ -826,9 +920,12 @@ function buildAllCarousels(){
       const total   = carruselProds[catId]?.length || 0;
       const pos     = posCarrusel[catId] || 0;
       const visible = visiblePorPantalla();
-      // Dispara cuando quedan ≤2 cards para llegar al final
       if(total - pos - visible <= 2){
-        cargarMasEnCategoria(catNombre);
+        if(catNombre === 'todos'){
+          cargarMasEnTodos();
+        } else {
+          cargarMasEnCategoria(catNombre);
+        }
       }
     }, { passive: true });
 
