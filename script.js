@@ -120,6 +120,7 @@ function applyConfig() {
   const heroTitleText = document.getElementById('hero-title');
   const heroTitleImgWrap = document.getElementById('hero-title-img-wrap');
   const heroTitleImg = document.getElementById('hero-title-img');
+  // Firebase/caché primero; si no hay nada, usa el default hardcodeado de config.js
   const heroLogoSrc = C._heroLogoImg || C.heroLogoImgDefault || null;
   if(heroLogoSrc){
     heroTitleText.style.display = 'none';
@@ -444,7 +445,18 @@ async function inicializar(){
     document.getElementById('admin-bar').style.display = 'flex';
   }
 
-  // CAMBIO 2 — mostrar caché inmediatamente si existe
+  // Cargar metadata cacheada ANTES de buildAllCarousels — orden de categorías correcto
+  try {
+    const metaCache = localStorage.getItem('meta_cache');
+    if (metaCache) {
+      const m = JSON.parse(metaCache);
+      categoriasOcultas = Array.isArray(m.categoriasOcultas) ? m.categoriasOcultas : [];
+      categoriaOrden    = Array.isArray(m.categoriaOrden)    ? m.categoriaOrden    : [];
+      ordenCategorias   = m.ordenCategorias || {};
+      productosOcultos  = Array.isArray(m.productosOcultos)  ? m.productosOcultos  : [];
+    }
+  } catch(e) {}
+
   const cache = localStorage.getItem('productos_cache');
   if (cache) {
     try {
@@ -462,9 +474,12 @@ async function inicializar(){
         p.id = 'prod_' + Date.now() + '_' + i + '_' + Math.random().toString(36).slice(2,8);
       }
     });
-    // CAMBIO 1 — guardar en caché
+    // Guardar productos y metadata en caché para próxima carga instantánea y correcta
     try {
       localStorage.setItem('productos_cache', JSON.stringify(productos));
+      localStorage.setItem('meta_cache', JSON.stringify({
+        categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos
+      }));
     } catch(e) {}
     //if(ADMIN_MODE){
     //  await guardarEnFirebase();
@@ -484,6 +499,9 @@ async function inicializar(){
       productos = await cargarDesdeFirebase();
       try {
         localStorage.setItem('productos_cache', JSON.stringify(productos));
+        localStorage.setItem('meta_cache', JSON.stringify({
+          categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos
+        }));
       } catch(e) {}
     } catch(err2){
       console.error('Error cargando Firebase:', err2);
@@ -538,12 +556,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 //  arrancar, para que todo aparezca junto en cascada.
 // ════════════════════════════════════════════════════════
 function animarHero(){
-  const DELAY_BASE  = 110; // ms entre cada elemento
-  const DELAY_START = 80;  // ms antes de arrancar
+  const DELAY_BASE  = 110;
+  const DELAY_START = 80;
 
-  // Animar TODOS los elementos de inmediato — sin esperar la imagen
-  // El hero-title-img-wrap arranca invisible (opacity:0) y aparece
-  // solo cuando la imagen termina de cargar gracias al listener abajo
+  // Anima TODO de inmediato — sin esperar la imagen del logo
   const elementos = [
     document.getElementById('hero-eyebrow-1'),
     document.getElementById('hero-eyebrow-2'),
@@ -559,8 +575,8 @@ function animarHero(){
     setTimeout(() => el.classList.add('hero-visible'), DELAY_START + i * DELAY_BASE);
   });
 
-  // Si la imagen aún no cargó, la mantenemos invisible hasta que esté lista
-  // y la hacemos aparecer con la transición CSS (sin bloquear nada)
+  // Si la imagen aún no cargó, la mantenemos invisible y aparece sola
+  // con la transición CSS cuando termina — sin bloquear nada
   const heroImg = document.getElementById('hero-title-img');
   const imgWrap = document.getElementById('hero-title-img-wrap');
   if(imgWrap && heroImg && heroImg.src && heroImg.src !== window.location.href){
