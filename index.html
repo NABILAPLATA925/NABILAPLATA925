@@ -21,18 +21,23 @@
 
 <!-- SEO general -->
 <meta name="description" content="Joyas de Plata 925 en Córdoba. Diseños modernos que acompañan tu estilo. Nabila Plata 925.">
+<!-- Preconnect: resuelve DNS/TLS antes de que se pidan los recursos -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com">
+<link rel="dns-prefetch" href="https://firestore.googleapis.com">
 <link id="gfonts" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+<!-- Firebase — defer: no bloquean el render del HTML -->
+<script defer src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 
 <!-- ═══════════════════════════════════════
      config.js va PRIMERO — contiene todos
      los datos del cliente (colores, textos,
      contactos, Firebase, etc.)
      ═══════════════════════════════════════ -->
-<script src="config.js"></script>
+<script defer src="config.js"></script>
 
 <link rel="stylesheet" href="style.css">
 
@@ -141,7 +146,7 @@
       <p class="hero-eyebrow" id="hero-eyebrow-2"></p>
       <h1 class="hero-title" id="hero-title" style="display:none"></h1>
       <div class="hero-title-img-wrap" id="hero-title-img-wrap" style="display:none">
-        <img id="hero-title-img" src="" alt="Logo" style="max-width:340px;width:85%;height:auto;display:block;margin:0 auto;background:transparent">
+        <img id="hero-title-img" src="" alt="Logo" fetchpriority="high" style="max-width:340px;width:85%;height:auto;display:block;margin:0 auto;background:transparent">
       </div>
       <p class="hero-subtitle" id="hero-subtitle"></p>
       <div class="hero-cta">
@@ -419,7 +424,7 @@
 <!-- TOAST -->
 <div class="admin-toast" id="admin-toast"></div>
 
-<script src="script.js"></script>
+<script defer src="script.js"></script>
 
 <!-- MODAL EDITAR PÁGINA (admin) -->
 <div class="admin-modal-overlay" id="edit-pagina-modal" onclick="cerrarModalEditarPagina(event)">

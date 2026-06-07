@@ -516,18 +516,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyConfig();
   if(ADMIN_REQUEST){ pedirLoginAdmin(); }
 
-  // Firebase en segundo plano — no bloquea nada
-  Promise.all([
-    cargarConfigEditable().then(data => {
-      if (data) {
-        try { localStorage.setItem('config_cache', JSON.stringify(data)); } catch(e) {}
-        applyConfig();
-      }
-    }),
-    inicializar()
-  ]).then(() => {
-    animarHero();
-  });
+  // Hero anima INMEDIATAMENTE — no espera Firebase para nada
+  // Primera visita: usa config.js; visitas siguientes: usa caché (ya aplicado arriba)
+  animarHero();
+
+  // Firebase carga en segundo plano, nunca bloquea la UI ni la animación
+  cargarConfigEditable().then(data => {
+    if (data) {
+      try { localStorage.setItem('config_cache', JSON.stringify(data)); } catch(e) {}
+      applyConfig(); // actualiza textos/logo si cambiaron en el admin
+    }
+  }).catch(() => {});
+
+  inicializar();
 });
 
 // ════════════════════════════════════════════════════════
@@ -568,8 +569,8 @@ function animarHero(){
       const once = () => { if(!fired){ fired = true; disparar(); } };
       heroImg.addEventListener('load',  once, { once: true });
       heroImg.addEventListener('error', once, { once: true });
-      // Safety: si tarda más de 1.5s arrancamos igual
-      setTimeout(once, 1500);
+      // Safety: si tarda más de 400ms arrancamos igual (no bloqueamos por la imagen)
+      setTimeout(once, 400);
     }
   } else {
     disparar();
