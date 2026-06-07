@@ -337,13 +337,69 @@ async function cargarMasEnCategoria(cat){
     });
   }
 
-  // Actualizar botones (podrían haberse ocultado si solo había 1 pantalla)
+  // Actualizar botones de la categoría
   const visible = visiblePorPantalla();
   const total   = carruselProds[catId].length;
   const btnPrev = document.getElementById('btn-prev-' + catId);
   const btnNext = document.getElementById('btn-next-' + catId);
   if(btnPrev) btnPrev.style.display = total <= visible ? 'none' : '';
   if(btnNext) btnNext.style.display = total <= visible ? 'none' : '';
+
+  // Sincronizar "Todos los productos" con los nuevos productos de esta categoría
+  const trackTodos = document.getElementById('carrusel-track-todos');
+  if(trackTodos && nuevosVisibles.length > 0){
+    const idsTodos = new Set((carruselProds['todos'] || []).map(p => p.id));
+    const aAgregar = nuevosVisibles.filter(p => !idsTodos.has(p.id));
+    if(aAgregar.length > 0){
+      const cardWTodos = getCardWidth();
+      if(esMobile()){
+        // Reconstruir último grupo incompleto en "todos" igual que en la categoría
+        const totalTodosAntes = carruselProds['todos']?.length || 0;
+        aAgregar.forEach(p => {
+          if(!carruselProds['todos']) carruselProds['todos'] = [];
+          carruselProds['todos'].push(p);
+        });
+        const restoAntes = totalTodosAntes % 4;
+        if(restoAntes !== 0 && trackTodos.lastChild){
+          trackTodos.removeChild(trackTodos.lastChild);
+        }
+        const aRenderizar = restoAntes !== 0
+          ? carruselProds['todos'].slice(totalTodosAntes - restoAntes)
+          : aAgregar;
+        for(let i = 0; i < aRenderizar.length; i += 4){
+          const grupo = aRenderizar.slice(i, i + 4);
+          const grp = document.createElement('div');
+          grp.className = 'carrusel-grupo-mobile';
+          grp.style.flex = `0 0 ${cardWTodos * 2 + 10}px`;
+          grp.style.display = 'grid';
+          grp.style.gridTemplateColumns = '1fr 1fr';
+          grp.style.gap = '8px';
+          grupo.forEach(p => {
+            const card = crearCard(p, false);
+            card.style.flex = '';
+            card.style.width = '100%';
+            grp.appendChild(card);
+          });
+          trackTodos.appendChild(grp);
+        }
+      } else {
+        aAgregar.forEach(p => {
+          if(!carruselProds['todos']) carruselProds['todos'] = [];
+          carruselProds['todos'].push(p);
+          const card = crearCard(p, false);
+          card.style.flex = `0 0 ${cardWTodos}px`;
+          trackTodos.appendChild(card);
+        });
+      }
+      // Actualizar botones de "todos"
+      const totalTodos  = carruselProds['todos'].length;
+      const totalGrupos = esMobile() ? Math.ceil(totalTodos / 4) : totalTodos;
+      const bPrev = document.getElementById('btn-prev-todos');
+      const bNext = document.getElementById('btn-next-todos');
+      if(bPrev) bPrev.style.display = totalGrupos <= 1 ? 'none' : '';
+      if(bNext) bNext.style.display = totalGrupos <= 1 ? 'none' : '';
+    }
+  }
 }
 
 // Guarda SOLO la metadata (categorías, orden, visibilidad)
@@ -721,12 +777,23 @@ function buildAllCarousels(){
   });
 
   // "Todos los productos" al final
-  if(productos.length > 0){
+  // Se construye desde los mismos prods ya filtrados por categoría visible,
+  // sin duplicados, respetando el orden en que aparecen por categoría.
+  const prodsEnVisibles = [];
+  const idsEnTodos = new Set();
+  toInit.forEach(({ prods }) => {
+    prods.forEach(p => {
+      if(!idsEnTodos.has(p.id)){
+        idsEnTodos.add(p.id);
+        prodsEnVisibles.push(p);
+      }
+    });
+  });
+
+  if(prodsEnVisibles.length > 0){
     const section = crearSeccionCarrusel('Todos los productos', 'todos', visibles.length > 0);
     container.appendChild(section);
-
-    // ← catNombre: 'todos' (no pagina contra Firestore)
-    toInit.push({ catId: 'todos', catNombre: 'todos', prods: [...productos] });
+    toInit.push({ catId: 'todos', catNombre: 'todos', prods: prodsEnVisibles });
   }
 
   // Construir tracks + eventos
