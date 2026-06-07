@@ -253,7 +253,7 @@ async function cargarDesdeFirebase(){
 
 // Carga un batch de N productos para UNA categoría
 async function cargarBatchCategoria(cat, lastDoc = null){
-  const BATCH = (SITE_CONFIG.paginacionBatch || 6);
+  const BATCH = (SITE_CONFIG.paginacionBatch || 8);
   let q = PRODS_COL
     .where('tipos', 'array-contains', cat)
     .orderBy('nombre')
