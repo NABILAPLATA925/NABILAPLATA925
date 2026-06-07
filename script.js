@@ -293,13 +293,49 @@ async function cargarMasEnCategoria(cat){
   const track  = document.getElementById('carrusel-track-' + catId);
   if(!track) return;
   const cardW = getCardWidth();
-  nuevos.forEach(p => {
-    if(productosOcultos.includes(p.id) && !ADMIN_MODE) return;
-    const card = crearCard(p, false);
-    card.style.flex = `0 0 ${cardW}px`;
-    track.appendChild(card);
-    carruselProds[catId].push(p);
-  });
+  // Filtrar ocultos
+  const nuevosVisibles = nuevos.filter(p => ADMIN_MODE || !productosOcultos.includes(p.id));
+  nuevosVisibles.forEach(p => carruselProds[catId].push(p));
+
+  if(esMobile()){
+    // En mobile hay que reconstruir el último grupo incompleto si existe,
+    // porque el batch anterior puede haber dejado un grupo con < 4 cards
+    const totalAhora = carruselProds[catId].length;
+    const totalAntes = totalAhora - nuevosVisibles.length;
+    // ¿El batch anterior terminó en un grupo incompleto?
+    const restoAnterior = totalAntes % 4;
+    // Eliminar el último grupo del track si estaba incompleto
+    if(restoAnterior !== 0 && track.lastChild){
+      track.removeChild(track.lastChild);
+    }
+    // Productos a renderizar: los que faltaban del grupo incompleto + los nuevos
+    const aRenderizar = restoAnterior !== 0
+      ? carruselProds[catId].slice(totalAntes - restoAnterior)
+      : nuevosVisibles;
+    // Agrupar de a 4
+    for(let i = 0; i < aRenderizar.length; i += 4){
+      const grupo = aRenderizar.slice(i, i + 4);
+      const grp = document.createElement('div');
+      grp.className = 'carrusel-grupo-mobile';
+      grp.style.flex = `0 0 ${cardW * 2 + 10}px`;
+      grp.style.display = 'grid';
+      grp.style.gridTemplateColumns = '1fr 1fr';
+      grp.style.gap = '8px';
+      grupo.forEach(p => {
+        const card = crearCard(p, false);
+        card.style.flex = '';
+        card.style.width = '100%';
+        grp.appendChild(card);
+      });
+      track.appendChild(grp);
+    }
+  } else {
+    nuevosVisibles.forEach(p => {
+      const card = crearCard(p, false);
+      card.style.flex = `0 0 ${cardW}px`;
+      track.appendChild(card);
+    });
+  }
 
   // Actualizar botones (podrían haberse ocultado si solo había 1 pantalla)
   const visible = visiblePorPantalla();
@@ -918,6 +954,24 @@ function moverCarrusel(catId, dir){
     if(outer) outer.scrollLeft = posCarrusel[catId] * (grupoW + 20);
   } else {
     if(outer) outer.scrollLeft = posCarrusel[catId] * (getCardWidth() + 20);
+  }
+
+  // Trigger lazy load: si estamos cerca del final del track, cargar más productos
+  const catNombre = Object.keys(carruselProds).includes(catId)
+    ? (() => {
+        // Recuperar el nombre real de categoría desde el catId
+        const cats = getCategorias();
+        return cats.find(c => getCatId(c) === catId) || null;
+      })()
+    : null;
+  if(catNombre && catNombre !== 'todos'){
+    const totalProds  = carruselProds[catId]?.length || 0;
+    const totalGrupos = esMobile() ? Math.ceil(totalProds / 4) : totalProds;
+    const posActual   = posCarrusel[catId] || 0;
+    // Cargar más cuando quedan ≤1 grupo/card para llegar al final
+    if(totalGrupos - posActual <= 2){
+      cargarMasEnCategoria(catNombre);
+    }
   }
 }
 
