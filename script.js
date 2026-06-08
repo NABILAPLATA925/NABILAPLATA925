@@ -227,22 +227,17 @@ async function cargarDesdeFirebase(){
       productosOcultos  = Array.isArray(m.productosOcultos)  ? m.productosOcultos  : [];
       // Categorías conocidas vienen del meta para no necesitar un query extra
       if(Array.isArray(m.categorias) && m.categorias.length){
-        // Cargar primer batch por cada categoría + "todos" en paralelo
-        const [batchesTodo, batchTodos] = await Promise.all([
-          Promise.all(m.categorias.map(cat => cargarBatchCategoria(cat))),
-          cargarBatchTodos()
-        ]);
-        batchesTodo.forEach(prods => {
+        // Cargar primer batch por cada categoría
+        const batchesCat = await Promise.all(
+          m.categorias.map(cat => cargarBatchCategoria(cat))
+        );
+        batchesCat.forEach(prods => {
           prods.forEach(p => {
             if(!productos.find(x => x.id === p.id)) productos.push(p);
           });
         });
-        // Los de "todos" también al array global (pueden ser los mismos, sin duplicar)
-        batchTodos.forEach(p => {
-          if(!productos.find(x => x.id === p.id)) productos.push(p);
-        });
-        // Guardar el primer batch de "todos" separado para buildAllCarousels
-        SITE_CONFIG._primerBatchTodos = batchTodos;
+        // "Todos los productos" se construye desde los productos ya en memoria
+        // (no necesita query propio — evita duplicados y se mantiene siempre sincronizado)
         return productos;
       }
     } else {
@@ -281,23 +276,6 @@ async function cargarBatchCategoria(cat, lastDoc = null){
 }
 
 
-// Carga un batch para el carrusel "Todos los productos" (sin filtro de categoría)
-async function cargarBatchTodos(lastDoc = null){
-  const BATCH = (SITE_CONFIG.paginacionBatch || 8);
-  let q = PRODS_COL.orderBy('nombre').limit(BATCH);
-  if(lastDoc) q = q.startAfter(lastDoc);
-
-  const snap = await q.get({ source: 'server' });
-  const docs  = snap.docs;
-  const prods = docs.map(d => ({ ...d.data(), id: d.id }));
-
-  if(!paginacion['todos']) paginacion['todos'] = {};
-  paginacion['todos'].lastDoc  = docs.length ? docs[docs.length - 1] : paginacion['todos'].lastDoc;
-  paginacion['todos'].agotado  = docs.length < BATCH;
-  paginacion['todos'].cargando = false;
-
-  return prods;
-}
 
 
 // Carga el siguiente batch para una categoría y agrega al carrusel
@@ -372,129 +350,86 @@ async function cargarMasEnCategoria(cat){
   if(btnPrev) btnPrev.style.display = total <= visible ? 'none' : '';
   if(btnNext) btnNext.style.display = total <= visible ? 'none' : '';
 
-  // Sincronizar "Todos los productos" con los nuevos productos de esta categoría
-  const trackTodos = document.getElementById('carrusel-track-todos');
-  if(trackTodos && nuevosVisibles.length > 0){
-    const idsTodos = new Set((carruselProds['todos'] || []).map(p => p.id));
-    const aAgregar = nuevosVisibles.filter(p => !idsTodos.has(p.id));
-    if(aAgregar.length > 0){
-      const cardWTodos = getCardWidth();
-      if(esMobile()){
-        // Reconstruir último grupo incompleto en "todos" igual que en la categoría
-        const totalTodosAntes = carruselProds['todos']?.length || 0;
-        aAgregar.forEach(p => {
-          if(!carruselProds['todos']) carruselProds['todos'] = [];
-          carruselProds['todos'].push(p);
+  // Actualizar el track de "todos" con los nuevos productos en memoria
+  // (reconstrucción limpia — evita duplicados y sincronización manual compleja)
+  if(nuevosVisibles.length > 0){
+    const trackTodos = document.getElementById('carrusel-track-todos');
+    if(trackTodos){
+      const cats = getCategorias().filter(c => !categoriasOcultas.includes(c));
+      const idsYa = new Set();
+      const prodsTodos = [];
+      cats.forEach(c => {
+        productos.forEach(p => {
+          const lista = Array.isArray(p.tipos) ? p.tipos : [p.tipo];
+          if(lista.includes(c) && !idsYa.has(p.id)){ idsYa.add(p.id); prodsTodos.push(p); }
         });
-        const restoAntes = totalTodosAntes % 4;
-        if(restoAntes !== 0 && trackTodos.lastChild){
-          trackTodos.removeChild(trackTodos.lastChild);
-        }
-        const aRenderizar = restoAntes !== 0
-          ? carruselProds['todos'].slice(totalTodosAntes - restoAntes)
-          : aAgregar;
-        for(let i = 0; i < aRenderizar.length; i += 4){
-          const grupo = aRenderizar.slice(i, i + 4);
-          const grp = document.createElement('div');
-          grp.className = 'carrusel-grupo-mobile';
-          grp.style.flex = `0 0 ${cardWTodos * 2 + 10}px`;
-          grp.style.display = 'grid';
-          grp.style.gridTemplateColumns = '1fr 1fr';
-          grp.style.gap = '8px';
-          grupo.forEach(p => {
-            const card = crearCard(p, false);
-            card.style.flex = '';
-            card.style.width = '100%';
-            grp.appendChild(card);
-          });
-          trackTodos.appendChild(grp);
-        }
-      } else {
-        aAgregar.forEach(p => {
-          if(!carruselProds['todos']) carruselProds['todos'] = [];
-          carruselProds['todos'].push(p);
-          const card = crearCard(p, false);
-          card.style.flex = `0 0 ${cardWTodos}px`;
-          trackTodos.appendChild(card);
-        });
-      }
-      // Actualizar botones de "todos"
-      const totalTodos  = carruselProds['todos'].length;
-      const totalGrupos = esMobile() ? Math.ceil(totalTodos / 4) : totalTodos;
-      const bPrev = document.getElementById('btn-prev-todos');
-      const bNext = document.getElementById('btn-next-todos');
-      if(bPrev) bPrev.style.display = totalGrupos <= 1 ? 'none' : '';
-      if(bNext) bNext.style.display = totalGrupos <= 1 ? 'none' : '';
+      });
+      productos.forEach(p => { if(!idsYa.has(p.id)){ idsYa.add(p.id); prodsTodos.push(p); } });
+      buildTrack('todos', prodsTodos);
     }
   }
 }
 
-// Carga el siguiente batch para "Todos los productos" independientemente
+// Carga el siguiente batch para "Todos los productos".
+// Como "todos" se construye desde los productos en memoria, al paginar
+// simplemente cargamos más de las categorías que aún tienen batches pendientes.
 async function cargarMasEnTodos(){
   const estado = paginacion['todos'];
-  if(!estado || estado.agotado || estado.cargando) return;
+  if(estado && (estado.agotado || estado.cargando)) return;
 
-  estado.cargando = true;
-  const nuevos = await cargarBatchTodos(estado.lastDoc);
-  if(!nuevos.length){ estado.agotado = true; return; }
+  // Marcar como cargando para evitar llamadas simultáneas
+  if(!paginacion['todos']) paginacion['todos'] = {};
+  paginacion['todos'].cargando = true;
 
-  // Agregar a la lista global sin duplicados
-  nuevos.forEach(p => {
-    if(!productos.find(x => x.id === p.id)) productos.push(p);
-  });
+  const cats = getCategorias().filter(c => !categoriasOcultas.includes(c));
 
+  // Intentar cargar el siguiente batch de cualquier categoría no agotada
+  let seCargoAlgo = false;
+  for(const cat of cats){
+    const est = paginacion[cat];
+    if(!est || est.agotado || est.cargando) continue;
+
+    const nuevos = await cargarBatchCategoria(cat, est.lastDoc);
+    if(!nuevos.length) continue;
+
+    seCargoAlgo = true;
+    // Agregar a memoria global sin duplicados
+    nuevos.forEach(p => {
+      if(!productos.find(x => x.id === p.id)) productos.push(p);
+    });
+    break; // Un batch a la vez es suficiente; el usuario puede seguir scrolleando
+  }
+
+  paginacion['todos'].cargando = false;
+
+  if(!seCargoAlgo){
+    // Todas las categorías agotadas → "todos" también agotado
+    paginacion['todos'].agotado = true;
+    return;
+  }
+
+  // Reconstruir el carrusel "todos" con los productos actualizados en memoria
   const trackTodos = document.getElementById('carrusel-track-todos');
   if(!trackTodos) return;
 
-  const nuevosVisibles = nuevos.filter(p => ADMIN_MODE || !productosOcultos.includes(p.id));
-  const cardW = getCardWidth();
-
-  if(esMobile()){
-    const totalAntes = carruselProds['todos']?.length || 0;
-    nuevosVisibles.forEach(p => {
-      if(!carruselProds['todos']) carruselProds['todos'] = [];
-      carruselProds['todos'].push(p);
+  // Reconstruir desde cero el track de "todos" con todos los productos en memoria
+  const idsYa = new Set();
+  const prodsTodos = [];
+  cats.forEach(cat => {
+    productos.forEach(p => {
+      const lista = Array.isArray(p.tipos) ? p.tipos : [p.tipo];
+      if(lista.includes(cat) && !idsYa.has(p.id)){
+        idsYa.add(p.id);
+        prodsTodos.push(p);
+      }
     });
-    const restoAntes = totalAntes % 4;
-    if(restoAntes !== 0 && trackTodos.lastChild){
-      trackTodos.removeChild(trackTodos.lastChild);
-    }
-    const aRenderizar = restoAntes !== 0
-      ? carruselProds['todos'].slice(totalAntes - restoAntes)
-      : nuevosVisibles;
-    for(let i = 0; i < aRenderizar.length; i += 4){
-      const grupo = aRenderizar.slice(i, i + 4);
-      const grp = document.createElement('div');
-      grp.className = 'carrusel-grupo-mobile';
-      grp.style.flex = `0 0 ${cardW * 2 + 10}px`;
-      grp.style.display = 'grid';
-      grp.style.gridTemplateColumns = '1fr 1fr';
-      grp.style.gap = '8px';
-      grupo.forEach(p => {
-        const card = crearCard(p, false);
-        card.style.flex = '';
-        card.style.width = '100%';
-        grp.appendChild(card);
-      });
-      trackTodos.appendChild(grp);
-    }
-  } else {
-    nuevosVisibles.forEach(p => {
-      if(!carruselProds['todos']) carruselProds['todos'] = [];
-      carruselProds['todos'].push(p);
-      const card = crearCard(p, false);
-      card.style.flex = `0 0 ${cardW}px`;
-      trackTodos.appendChild(card);
-    });
-  }
+  });
+  // Productos sin categoría visible
+  productos.forEach(p => {
+    if(!idsYa.has(p.id)){ idsYa.add(p.id); prodsTodos.push(p); }
+  });
 
-  // Actualizar botones
-  const totalTodos  = carruselProds['todos'].length;
-  const totalGrupos = esMobile() ? Math.ceil(totalTodos / 4) : totalTodos;
-  const bPrev = document.getElementById('btn-prev-todos');
-  const bNext = document.getElementById('btn-next-todos');
-  if(bPrev) bPrev.style.display = totalGrupos <= 1 ? 'none' : '';
-  if(bNext) bNext.style.display = totalGrupos <= 1 ? 'none' : '';
+  buildTrack('todos', prodsTodos);
 }
 
 // Guarda SOLO la metadata (categorías, orden, visibilidad)
@@ -849,6 +784,9 @@ function buildAllCarousels(){
   const visibles = cats.filter(c => !categoriasOcultas.includes(c));
   const toInit = [];
 
+  // IDs ya incluidos en "todos" para construirlo sin duplicados
+  const idsTodos = new Set();
+
   visibles.forEach((cat, idx) => {
 
     const prods = productos.filter(p => {
@@ -873,30 +811,41 @@ function buildAllCarousels(){
     const section = crearSeccionCarrusel(cat, catId, idx > 0);
     container.appendChild(section);
 
-    // ← catNombre agregado
     toInit.push({ catId, catNombre: cat, prods: [...prods] });
+
+    // Acumular IDs para "todos"
+    prods.forEach(p => idsTodos.add(p.id));
   });
 
-  // "Todos los productos" al final
-  // Se construye desde los mismos prods ya filtrados por categoría visible,
+  // "Todos los productos" — construido desde los productos ya en memoria,
   // sin duplicados, respetando el orden en que aparecen por categoría.
-  const prodsEnVisibles = [];
-  const idsEnTodos = new Set();
+  // Se incluyen también productos sin categoría visible (edge case).
+  const prodsTodos = [];
+  const idsYaAgregados = new Set();
+
+  // Primero los que aparecen en categorías visibles (en orden de aparición)
   toInit.forEach(({ prods }) => {
     prods.forEach(p => {
-      if(!idsEnTodos.has(p.id)){
-        idsEnTodos.add(p.id);
-        prodsEnVisibles.push(p);
+      if(!idsYaAgregados.has(p.id)){
+        idsYaAgregados.add(p.id);
+        prodsTodos.push(p);
       }
     });
   });
 
-  // "Todos los productos" usa su propio primer batch independiente (con paginación propia)
-  const primerBatchTodos = SITE_CONFIG._primerBatchTodos || prodsEnVisibles;
-  if(primerBatchTodos.length > 0){
+  // Luego los que pudieran no estar en ninguna categoría visible (no debería ocurrir,
+  // pero los incluimos para que "todos" sea realmente TODOS)
+  productos.forEach(p => {
+    if(!idsYaAgregados.has(p.id)){
+      idsYaAgregados.add(p.id);
+      prodsTodos.push(p);
+    }
+  });
+
+  if(prodsTodos.length > 0){
     const section = crearSeccionCarrusel('Todos los productos', 'todos', visibles.length > 0);
     container.appendChild(section);
-    toInit.push({ catId: 'todos', catNombre: 'todos', prods: primerBatchTodos });
+    toInit.push({ catId: 'todos', catNombre: 'todos', prods: prodsTodos });
   }
 
   // Construir tracks + eventos
