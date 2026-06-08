@@ -221,6 +221,21 @@ async function cargarDesdeFirebase(){
     const metaSnap = await META_REF.get({ source: 'server' });
     if(metaSnap.exists){
       const m = metaSnap.data();
+
+      // ── Invalidación de caché por timestamp ──────────────────
+      // Si Firebase tiene un lastModified más nuevo que el caché local,
+      // limpiar el caché para forzar recarga fresca en inicializar()
+      const serverTs = m.lastModified || 0;
+      const localTs  = Number(localStorage.getItem('cache_ts') || '0');
+      if(serverTs > localTs){
+        try {
+          localStorage.removeItem('productos_cache');
+          localStorage.removeItem('meta_cache');
+          localStorage.removeItem('config_cache');
+        } catch(e) {}
+      }
+      // ─────────────────────────────────────────────────────────
+
       categoriasOcultas = Array.isArray(m.categoriasOcultas) ? m.categoriasOcultas : [];
       categoriaOrden    = Array.isArray(m.categoriaOrden)    ? m.categoriaOrden    : [];
       ordenCategorias   = m.ordenCategorias || {};
@@ -436,17 +451,20 @@ async function cargarMasEnTodos(){
 async function guardarMetaEnFirebase(){
   // Recalcular lista de categorías conocidas para el loader paginado
   const cats = getCategorias();
+  const ts = Date.now();
   await META_REF.set({
     categoriasOcultas,
     categoriaOrden,
     ordenCategorias,
     productosOcultos,
-    categorias: cats
+    categorias: cats,
+    lastModified: ts
   });
   try {
     localStorage.setItem('meta_cache', JSON.stringify({
       categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos
     }));
+    localStorage.setItem('cache_ts', String(ts));
   } catch(e) {}
 }
 
@@ -457,12 +475,20 @@ async function guardarProductoEnFirebase(prod){
     : PRODS_COL.doc();                // nuevo ID automático
   if(!prod.id) prod.id = docRef.id;   // guardar el ID en el objeto
   await docRef.set(prod);
+  // Actualizar timestamp de última modificación
+  const ts = Date.now();
+  await META_REF.set({ lastModified: ts }, { merge: true });
+  try { localStorage.setItem('cache_ts', String(ts)); } catch(e) {}
   return prod;
 }
 
 // Elimina UN producto de Firestore
 async function eliminarProductoEnFirebase(prodId){
   await PRODS_COL.doc(prodId).delete();
+  // Actualizar timestamp de última modificación
+  const ts = Date.now();
+  await META_REF.set({ lastModified: ts }, { merge: true });
+  try { localStorage.setItem('cache_ts', String(ts)); } catch(e) {}
 }
 
 // Guarda TODO (batch): útil para restaurar o migrar desde formato legacy
@@ -500,7 +526,12 @@ async function guardarEnFirebase(){
     });
 
     await batch.commit();
-    try { localStorage.setItem('productos_cache', JSON.stringify(productos)); } catch(e) {}
+    const ts = Date.now();
+    await META_REF.set({ lastModified: ts }, { merge: true });
+    try {
+      localStorage.setItem('productos_cache', JSON.stringify(productos));
+      localStorage.setItem('cache_ts', String(ts));
+    } catch(e) {}
     return true;
   } catch(err) {
     console.error('Error guardando en Firebase:', err);
@@ -596,6 +627,7 @@ async function inicializar(){
   }
 
   try {
+    // cargarDesdeFirebase() puede invalidar el caché si detecta un lastModified más nuevo
     productos = await cargarDesdeFirebase();
     productos.forEach((p, i) => {
       if(!p.id){
@@ -609,12 +641,9 @@ async function inicializar(){
         categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos
       }));
     } catch(e) {}
-    //if(ADMIN_MODE){
-    //  await guardarEnFirebase();
-    //}
 
-    // CAMBIO 3 — redibujar solo si Firebase trajo algo distinto al caché
-    if (cache !== JSON.stringify(productos)) {
+    // Redibujar si Firebase trajo algo distinto al caché (o si el caché fue invalidado)
+    if (!cache || cache !== JSON.stringify(productos)) {
       const loadingEl = document.getElementById('carrusel-loading');
       if (loadingEl) loadingEl.style.display = 'none';
       buildAllCarousels();
@@ -1886,7 +1915,7 @@ function cargarNavLogo(e){
 
 async function cargarConfigEditable(){
   try {
-    const snap = await CONFIG_REF.get({ source: 'default' });
+    const snap = await CONFIG_REF.get({ source: 'server' });
     if(snap.exists){
       const data = snap.data();
       // Mezclar sobre SITE_CONFIG
@@ -2057,6 +2086,7 @@ async function guardarEditarPagina(){
 
   // ── Persistir en Firebase ──────────────────────────────
   try {
+    const ts = Date.now();
     await CONFIG_REF.set({
       rubro:        C.rubro,
       ubicacion:    C.ubicacion,
@@ -2069,6 +2099,9 @@ async function guardarEditarPagina(){
       heroLogoImg:  C._heroLogoImg || null,
       navLogoImg: C._navLogoImg || null
     });
+    // Invalidar caché de otros dispositivos
+    await META_REF.set({ lastModified: ts }, { merge: true });
+    try { localStorage.setItem('cache_ts', String(ts)); } catch(e) {}
     mostrarToast('Cambios guardados ✓');
   } catch(err){
     console.error('Error guardando configEditable:', err);
