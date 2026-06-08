@@ -232,7 +232,7 @@
 .carrusel-wrapper{position:relative}
 /* DESPUÉS */
 /* DESPUÉS */
-.carrusel-track-outer{overflow-x:auto;border-radius:4px;scroll-snap-type:x mandatory;scrollbar-width:none;-ms-overflow-style:none;scroll-behavior:smooth}
+.carrusel-track-outer{overflow-x:auto;border-radius:4px;scroll-snap-type:x mandatory;scrollbar-width:none;-ms-overflow-style:none;scroll-behavior:smooth;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
 .carrusel-track-outer::-webkit-scrollbar{display:none}
 .carrusel-track{display:flex;gap:20px}
 .producto-card{flex:0 0 calc(33.333% - 14px);scroll-snap-align:start;cursor:pointer;overflow:hidden;position:relative;aspect-ratio:3/4;border-radius:4px;transition:transform .3s}

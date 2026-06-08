@@ -901,17 +901,6 @@ function buildAllCarousels(){
     const track = document.getElementById('carrusel-track-' + catId);
     if(!track) return;
 
-    // ── Touch (mobile) ──────────────────────────────────────────
-    let startX = 0;
-    track.addEventListener('touchstart', e => {
-      startX = e.touches[0].clientX;
-    }, { passive: true });
-
-    track.addEventListener('touchend', e => {
-      const diff = startX - e.changedTouches[0].clientX;
-      if(Math.abs(diff) > 40) moverCarrusel(catId, diff > 0 ? 1 : -1);
-    });
-
     // ── Lazy load al scroll horizontal ─────────────────────────
     const outer = track.closest('.carrusel-track-outer');
     if(!outer) return;
