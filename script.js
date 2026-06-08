@@ -1318,7 +1318,7 @@ async function eliminarProducto(p){
     mostrarToast('Producto eliminado ✓');
   } catch(err) {
     console.error('Error eliminando producto:', err);
-    mostrarToastError('⚠ Error al eliminar. Revisá la conexión.', 5000);
+    mostrarToastError('⚠ Error al eliminar. Revisá la conexión, recargar la página.', 7000);
   }
 }
 
@@ -1362,7 +1362,7 @@ async function toggleVisibilidadProducto(p, card, btn){
     mostrarToast(ahoraOculto ? 'Producto ocultado ✓' : 'Producto visible ✓');
   } catch(err) {
     console.error('Error guardando visibilidad:', err);
-    mostrarToastError('⚠ Error al guardar. Revisá la conexión.', 5000);
+    mostrarToastError('⚠ Error al guardar. Revisá la conexión, recargar la página.', 7000);
   }
 }
 
@@ -1723,7 +1723,7 @@ async function guardarReorden(){
     mostrarToast('Orden guardado ✓');
   } catch(err) {
     console.error('Error guardando orden:', err);
-    mostrarToastError('⚠ Error al guardar. Revisá la conexión.', 5000);
+    mostrarToastError('⚠ Error al guardar. Revisá la conexión, recargar la página.', 7000);
   }
 }
 
@@ -1817,7 +1817,7 @@ async function guardarCategorias(){
     mostrarToast('Categorías actualizadas ✓');
   } catch(err) {
     console.error('Error guardando categorías:', err);
-    mostrarToastError('⚠ Error al guardar. Revisá la conexión.', 5000);
+    mostrarToastError('⚠ Error al guardar. Revisá la conexión, recargar la página.', 7000);
   }
 }
 
@@ -1847,7 +1847,7 @@ async function eliminarCategoria(cat){
     if(exito) mostrarToast(`Categoría eliminada ✓`);
   } catch(err) {
     console.error('Error eliminando categoría:', err);
-    mostrarToastError('⚠ Error al eliminar. Revisá la conexión.', 5000);
+    mostrarToastError('⚠ Error al eliminar. Revisá la conexión, recargar la página.', 7000);
   }
 }
 
@@ -2084,7 +2084,7 @@ async function guardarEditarPagina(){
     mostrarToast('Cambios guardados ✓');
   } catch(err){
     console.error('Error guardando configEditable:', err);
-    mostrarToast('⚠ Error al guardar. Revisá la conexión.');
+    mostrarToast('⚠ Error al guardar. Revisá la conexión, recargar la página.');
   }
 }
 
