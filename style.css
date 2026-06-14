@@ -28,8 +28,34 @@
   .nav-logo{font-family:var(--font-nav),serif;font-size: 19px !important; letter-spacing: 0px !important;font-weight:300;white-space: nowrap;gap: 6px !important;;color:var(--text);text-transform:uppercase;cursor:pointer}
   .nav-logo span{color:var(--principal);font-style:italic}
   .nav-logo-img {height: 1.1em !important; width: 1.1em !important; object-fit: contain; background: transparent;}
-  .nav-links{display:flex;gap:2rem;list-style:none}
-  .nav-links a{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--text-soft);text-decoration:none;cursor:pointer;transition:color .2s}
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 2rem; /* Este espacio ahora se medirá estrictamente de texto a texto */
+    list-style: none;
+  }
+  .nav-links a {
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-soft);
+    text-decoration: none;
+    cursor: pointer;
+    transition: color .2s;
+    position: relative; 
+    display: flex;         
+    align-items: center;   
+    line-height: 1;        
+  }
+  .nav-links a svg,
+  .nav-links a i,
+  .nav-links a span {
+      position: absolute;
+      left: 100%;           
+      top: 50%;             
+      transform: translateY(-50%); 
+      margin-left: 6px;     
+  }
   .nav-links a:hover{color:var(--principal)}
   .nav-social{display:flex;gap: 6px !important;align-items:center}
   .nav-icon{width:26px !important;height:26px !important;border:0.5px solid var(--detalles);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .2s;text-decoration:none}
@@ -206,7 +232,7 @@
   .about-img-placeholder p{font-family:var(--font-titulo-seccion),serif;font-size:18px;color:var(--principal);font-style:italic}
   .about-accent{position:absolute;bottom:-20px;right:-20px;width:80%;height:80%;border:1px solid var(--detalles);border-radius:4px;z-index:-1}
   .about-text p{font-size:15px;line-height:1.9;color:var(--text-soft);margin-bottom:1rem;font-weight:300}
-  .about-stat{display:inline-flex;flex-direction:column;margin-right:2rem;margin-top:1.5rem}
+  .about-stat{display:inline-flex;flex-direction:column;align-items:center;margin-right:2rem;margin-top:1.5rem}
   .stat-num{font-family:var(--font-titulo-seccion),serif;font-size:42px;font-weight:300;color:var(--principal)}
   .stat-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-soft)}
   .about-img-placeholder img{
@@ -281,6 +307,9 @@
   .modal-title{font-family:var(--font-titulo-producto),serif;font-size:38px;font-weight:300;color:var(--text);line-height:1.2;margin-bottom:1rem}
   .modal-divider{width:40px;height:1px;background:var(--detalles);margin:1.5rem 0}
   .modal-desc{font-size:14px;line-height:1.9;color:var(--text-soft);font-weight:300;margin-bottom:2.5rem}
+  .modal-btns{display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+  .modal-btns .btn-primary,
+  .modal-btns .whatsapp-btn{width:300px;max-width:100%;padding-left:20px;padding-right:20px}
   .modal-close{position:absolute;top:1.5rem;right:1.5rem;width:36px;height:36px;border:0.5px solid var(--detalles);background:white;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text-soft);z-index:10}
   .whatsapp-btn{
     display:inline-flex;
@@ -688,7 +717,7 @@
   .reorder-modal-btns{display:flex;gap:10px;margin-top:1.5rem}
   
   /* Multi-carousel sections */
-  .cat-section { }
+  /*.cat-section { }*/
   .cat-divider { width:100%;height:1px;background:var(--detalles);opacity:0.35;margin:3.5rem 0 3rem }
   .cat-section-header { margin-bottom:1.5rem }
   .cat-label { font-size:13px;letter-spacing:4px;color:var(--principal) }
@@ -1091,8 +1120,8 @@
   }
   .about-accent { display: none; } /* El borde decorativo queda raro en 1 columna */
   .about-text p { font-size: 14px; }
-  .stat-num { font-size: 34px; }
-  .about-stat { margin-right: 1.5rem; }
+  .stat-num { font-size: 34px; text-align: center; }
+  .about-stat { margin-right: 1.5rem; align-items: center; }
 
   /* ── PRODUCTOS ────────────────────────────────── */
   .productos-header {
@@ -1136,7 +1165,8 @@
     padding: 11px 8px !important;
     white-space: nowrap !important;
   }
-  #modal-add-cart { margin-bottom: 8px !important; }
+  #modal-add-cart { margin-bottom: 0 !important; }
+  .modal-btns { align-items: stretch; }
 
   /* ── CONTACTO ─────────────────────────────────── */
   .contacto-grid {
