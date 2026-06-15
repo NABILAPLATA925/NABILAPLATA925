@@ -2117,8 +2117,8 @@ function abrirBuscador(){
   overlay.classList.add('active');
   document.body.style.overflow = 'hidden';
   document.getElementById('search-input').value = '';
-  document.getElementById('search-results').innerHTML = '';
   document.getElementById('search-empty').style.display = 'none';
+  ejecutarBusqueda('');
   setTimeout(() => document.getElementById('search-input').focus(), 80);
 }
 
@@ -2138,7 +2138,36 @@ function ejecutarBusqueda(query){
   const emptyEl   = document.getElementById('search-empty');
   const countEl   = document.getElementById('search-count');
 
-  if(!q){ resultsEl.innerHTML = ''; emptyEl.style.display='none'; countEl.textContent=''; return; }
+  if(!q){
+    // Sin texto → mostrar la primera categoría visible (normalmente "Destacados")
+    emptyEl.style.display = 'none';
+    const primeraCat = getCategorias().filter(c => !categoriasOcultas.includes(c))[0];
+    if(!primeraCat){ resultsEl.innerHTML = ''; countEl.textContent = ''; return; }
+    const destacados = productos.filter(p => {
+      const lista = Array.isArray(p.tipos) ? p.tipos : [p.tipo];
+      return lista.includes(primeraCat);
+    });
+    countEl.textContent = primeraCat; // muestra el nombre de la categoría como título
+    resultsEl.innerHTML = '';
+    destacados.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'search-card';
+      const cats = Array.isArray(p.tipos) ? p.tipos.join(' · ') : (p.tipo || '');
+      card.innerHTML = `
+        <div class="search-card-img">
+          <img src="${p.img}" alt="${p.nombre}">
+        </div>
+        <div class="search-card-info">
+          <div class="search-card-cat">${cats}</div>
+          <div class="search-card-name">${p.nombre}</div>
+          <div class="search-card-desc">${p.desc ? p.desc.substring(0,80)+'…' : ''}</div>
+        </div>
+        <button class="search-card-btn">Ver</button>`;
+      card.addEventListener('click', () => { cerrarBuscador(); openModal(p); });
+      resultsEl.appendChild(card);
+    });
+    return;
+  }
 
   const palabras = q.toLowerCase().split(/\s+/).filter(Boolean);
   const encontrados = productos.filter(p => {
@@ -2253,13 +2282,29 @@ document.addEventListener('DOMContentLoaded', () => {
     factor: c.factor
   })).filter(c => c.el);
 
+  // ── Parallax imagen "Nosotros" ──────────────────────────
+  // La imagen se mueve más lento que el scroll → efecto de profundidad
+  const nosotrosImg = document.querySelector('.about-img-placeholder') || document.querySelector('.about-img-main');
+  const FACTOR_NOS  = 0.18; // 0 = sin efecto · 1 = fija · 0.18 = sutil y elegante
+
   let rafPending = false;
 
   function aplicar(){
     const scrollY = window.scrollY;
+
+    // Círculos del hero
     elementos.forEach(({ el, factor }) => {
       el.style.transform = `translateY(${scrollY * factor}px)`;
     });
+
+    // Imagen de Nosotros: offset relativo al centro visible de la sección
+    if(nosotrosImg){
+      const seccion = nosotrosImg.closest('#nosotros');
+      const rect    = seccion ? seccion.getBoundingClientRect() : null;
+      const centro  = rect ? rect.top + rect.height / 2 - window.innerHeight / 2 : 0;
+      nosotrosImg.style.transform = `translateY(${centro * FACTOR_NOS}px) scale(1.08)`;
+    }
+
     rafPending = false;
   }
 
@@ -2269,6 +2314,9 @@ document.addEventListener('DOMContentLoaded', () => {
       requestAnimationFrame(aplicar);
     }
   }, { passive: true });
+
+  // Aplicar estado inicial sin esperar el primer scroll
+  requestAnimationFrame(aplicar);
 })();
 
 
@@ -2532,3 +2580,4 @@ if (document.readyState === 'loading') {
 })();
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMobileMenu(); });
+
