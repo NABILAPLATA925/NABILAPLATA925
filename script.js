@@ -2285,7 +2285,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Parallax imagen "Nosotros" ──────────────────────────
   // La imagen se mueve más lento que el scroll → efecto de profundidad
   const nosotrosImg = document.querySelector('.about-img-placeholder') || document.querySelector('.about-img-main');
-  const FACTOR_NOS  = 0.18; // 0 = sin efecto · 1 = fija · 0.18 = sutil y elegante
+  const FACTOR_NOS = window.innerWidth <= 768 ? 0.05 : 0.18; // 0 = sin efecto · 1 = fija · 0.18 = sutil y elegante
 
   let rafPending = false;
 
@@ -2302,7 +2302,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const seccion = nosotrosImg.closest('#nosotros');
       const rect    = seccion ? seccion.getBoundingClientRect() : null;
       const centro  = rect ? rect.top + rect.height / 2 - window.innerHeight / 2 : 0;
-      nosotrosImg.style.transform = `translateY(${centro * FACTOR_NOS}px) scale(1.08)`;
+      nosotrosImg.style.transform = `translateY(${centro * FACTOR_NOS}px) scale(${window.innerWidth <= 768 ? 1.02 : 1.08})`;
     }
 
     rafPending = false;
