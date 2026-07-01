@@ -1603,3 +1603,35 @@
 @media (max-width: 768px) {
   .nav-hamburger { display: flex; }
 }
+
+/* ════════════════════════════════════════
+   BOTONES ADMIN DENTRO DEL MODAL DE PRODUCTO
+   (editar / ocultar / eliminar) — mismo estilo
+   que en las cards del carrusel, reubicados
+   en fila arriba a la izquierda, sobre la foto.
+   ════════════════════════════════════════ */
+.modal-admin-actions{
+  position:absolute;
+  top:1.5rem;
+  left:1.5rem;
+  z-index:15;
+  display:flex;
+  gap:8px;
+}
+.modal-admin-actions:empty{
+  display:none;
+}
+.modal-admin-actions .admin-edit-btn,
+.modal-admin-actions .admin-visibility-btn,
+.modal-admin-actions .admin-delete-btn{
+  position:static;
+  top:auto;
+  right:auto;
+}
+
+@media (max-width: 768px) {
+  .modal-admin-actions{
+    top:0.9rem;
+    left:0.9rem;
+  }
+}

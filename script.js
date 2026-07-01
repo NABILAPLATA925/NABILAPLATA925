@@ -1236,9 +1236,69 @@ function openModal(p){
   const template = SITE_CONFIG.contacto.waTextoProducto || SITE_CONFIG.contacto.waTexto;
   const msgProducto = template.replace('{nombre}', p.nombre);
   document.getElementById('modal-wa').href = `https://wa.me/${SITE_CONFIG.whatsapp}?text=${encodeURIComponent(msgProducto)}`;
+
+  pintarAccionesAdminModal(p);
+
   document.getElementById('modal').classList.add('active');
   document.getElementById('modal-add-cart').onclick = () => agregarAlCarrito(p);
   document.body.style.overflow = 'hidden';
+}
+
+// Si estamos en modo admin, agrega dentro del modal de producto los mismos
+// botones de editar / ocultar / eliminar que ya existen en las cards del
+// carrusel. Esto permite entrar a un producto desde el buscador (en modo
+// admin) y administrarlo sin tener que volver a encontrarlo en su carrusel.
+function pintarAccionesAdminModal(p){
+  const cont = document.getElementById('modal-admin-actions');
+  if(!cont) return;
+  cont.innerHTML = '';
+  if(!ADMIN_MODE) return;
+
+  const svgOculto  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+  const svgVisible = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+
+  const btnEdit = document.createElement('button');
+  btnEdit.className = 'admin-edit-btn';
+  btnEdit.innerHTML = '✏';
+  btnEdit.title = 'Editar producto';
+  btnEdit.addEventListener('click', e => {
+    e.stopPropagation();
+    document.getElementById('modal').classList.remove('active');
+    document.body.style.overflow = '';
+    abrirModalEditar(p);
+  });
+
+  const estaOculto = productosOcultos.includes(p.id);
+  const btnVis = document.createElement('button');
+  btnVis.className = 'admin-visibility-btn' + (estaOculto ? ' is-hidden' : '');
+  btnVis.title = estaOculto ? 'Producto oculto — clic para mostrar' : 'Ocultar producto';
+  btnVis.innerHTML = estaOculto ? svgOculto : svgVisible;
+  btnVis.addEventListener('click', e => {
+    e.stopPropagation();
+    toggleVisibilidadProducto(p, null, btnVis);
+    // El array `productosOcultos` ya está actualizado de forma síncrona
+    // apenas se llama a toggleVisibilidadProducto (antes del guardado async),
+    // así que podemos reflejar el nuevo estado en el botón al toque.
+    const ahoraOculto = productosOcultos.includes(p.id);
+    btnVis.classList.toggle('is-hidden', ahoraOculto);
+    btnVis.title = ahoraOculto ? 'Producto oculto — clic para mostrar' : 'Ocultar producto';
+    btnVis.innerHTML = ahoraOculto ? svgOculto : svgVisible;
+  });
+
+  const btnDel = document.createElement('button');
+  btnDel.className = 'admin-delete-btn';
+  btnDel.innerHTML = '×';
+  btnDel.title = 'Eliminar producto';
+  btnDel.addEventListener('click', async e => {
+    e.stopPropagation();
+    await eliminarProducto(p);
+    document.getElementById('modal').classList.remove('active');
+    document.body.style.overflow = '';
+  });
+
+  cont.appendChild(btnEdit);
+  cont.appendChild(btnVis);
+  cont.appendChild(btnDel);
 }
 
 function modalCarouselMove(dir){
@@ -2240,6 +2300,41 @@ function onSearchInput(e){
   searchTimeout = setTimeout(() => ejecutarBusqueda(e.target.value), 180);
 }
 
+// Cuenta cuántos caracteres (multiset) comparten dos strings.
+// Ej: "anillo 6 y" vs "anillo 6 y" comparte todo; vs "anillo 6 x" comparte
+// todo menos la "y", lo que hace que el match exacto puntúe más alto.
+function contarCaracteresComunes(a, b){
+  const freq = {};
+  for(const ch of a){
+    if(ch === ' ') continue;
+    freq[ch] = (freq[ch] || 0) + 1;
+  }
+  let comunes = 0;
+  for(const ch of b){
+    if(ch === ' ') continue;
+    if(freq[ch] > 0){
+      comunes++;
+      freq[ch]--;
+    }
+  }
+  return comunes;
+}
+
+// Puntaje de relevancia de un producto contra la búsqueda.
+// Prioridad: 1) coincidencia exacta, 2) el título empieza con la búsqueda,
+// 3) el título contiene la búsqueda completa, 4) cantidad de palabras
+// sueltas que matchean, 5) cantidad de caracteres en común (desempate fino,
+// para que "anillo 6 y" quede antes que "anillo 6 x" al buscar "anillo 6 y").
+function calcularScoreBusqueda(tituloLower, qLower, palabras){
+  let score = 0;
+  if(tituloLower === qLower) score += 5000;
+  else if(tituloLower.startsWith(qLower)) score += 2000;
+  else if(tituloLower.includes(qLower)) score += 1000;
+  palabras.forEach(w => { if(tituloLower.includes(w)) score += 50; });
+  score += contarCaracteresComunes(tituloLower, qLower) * 2;
+  return score;
+}
+
 function ejecutarBusqueda(query){
   const q = query.trim();
   const resultsEl = document.getElementById('search-results');
@@ -2282,10 +2377,21 @@ function ejecutarBusqueda(query){
   const fuente = indiceCompleto.length ? indiceCompleto : productos;
 
   const palabras = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const qLower = q.toLowerCase();
   const encontrados = fuente.filter(p => {
     if(!ADMIN_MODE && productosOcultos.includes(p.id)) return false;
     const titulo = (p.nombre || '').toLowerCase();
     return palabras.some(w => titulo.includes(w));
+  });
+
+  // Ordenamos por relevancia: primero lo que más se parece a lo buscado
+  // (coincidencia exacta > empieza igual > lo contiene > más caracteres
+  // en común), así "anillo 6 y" aparece antes que "anillo 6 x" al buscar
+  // "anillo 6 y".
+  encontrados.sort((a, b) => {
+    const scoreA = calcularScoreBusqueda((a.nombre || '').toLowerCase(), qLower, palabras);
+    const scoreB = calcularScoreBusqueda((b.nombre || '').toLowerCase(), qLower, palabras);
+    return scoreB - scoreA;
   });
 
   countEl.textContent = encontrados.length > 0
