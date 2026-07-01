@@ -2453,12 +2453,17 @@ async function abrirProductoDesdeBuscador(prodId){
 }
 
 function resaltarPalabras(texto, palabras){
-  let result = texto;
-  palabras.forEach(w => {
-    const regex = new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi');
-    result = result.replace(regex, '<mark>$1</mark>');
-  });
-  return result;
+  const unicas = [...new Set((palabras || []).filter(Boolean))]
+    // Las más largas primero, para que "collar" no le "gane" el match a "collares", etc.
+    .sort((a, b) => b.length - a.length)
+    .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+
+  if(!unicas.length) return texto;
+
+  // Un solo pase con alternancia sobre el texto ORIGINAL (nunca sobre el resultado
+  // ya resaltado), para no volver a matchear adentro de un <mark> ya insertado.
+  const regex = new RegExp(`(${unicas.join('|')})`, 'gi');
+  return texto.replace(regex, '<mark>$1</mark>');
 }
 
 
