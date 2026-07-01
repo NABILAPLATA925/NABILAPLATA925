@@ -453,20 +453,42 @@ async function guardarMetaEnFirebase(){
 // y lo guarda dentro del doc de metadata. Solo se llama desde el admin
 // (al guardar/eliminar un producto), nunca en la carga normal del sitio,
 // así que no afecta las lecturas de los visitantes.
+// Arma la entrada liviana de índice para UN producto
+function entradaIndice(p){
+  return {
+    id: p.id,
+    nombre: p.nombre || '',
+    tipos: Array.isArray(p.tipos) ? p.tipos : (p.tipo ? [p.tipo] : []),
+    // OJO: NO incluir `img` acá — las imágenes se guardan en base64 y son
+    // pesadas; con 100+ productos el doc de índice supera el límite de 1MB
+    // de Firestore. El buscador no necesita la imagen para filtrar por nombre;
+    // la imagen real se muestra recién cuando se abre el producto.
+    desc: p.desc ? p.desc.substring(0, 80) : ''
+  };
+}
+
+// Agrega o actualiza UNA entrada en el índice en memoria (sin leer Firestore)
+function upsertEnIndice(prod){
+  const entrada = entradaIndice(prod);
+  const i = indiceCompleto.findIndex(p => p.id === prod.id);
+  if(i >= 0) indiceCompleto[i] = entrada;
+  else indiceCompleto.push(entrada);
+}
+
+// Quita UNA entrada del índice en memoria (sin leer Firestore)
+function quitarDeIndice(prodId){
+  indiceCompleto = indiceCompleto.filter(p => p.id !== prodId);
+}
+
+// Reconstruye el índice completo LEYENDO toda la colección.
+// Solo se usa una vez, cuando el índice todavía no existe (bootstrap inicial).
+// No se llama en cada guardado/eliminación — eso se maneja de forma incremental
+// con upsertEnIndice/quitarDeIndice para no sumar lecturas ni depender de una
+// query pesada cada vez que se edita un producto.
 async function reconstruirIndiceBusqueda(){
   const snap = await PRODS_COL.get({ source: 'server' });
-  const indice = snap.docs.map(d => {
-    const p = d.data();
-    return {
-      id: d.id,
-      nombre: p.nombre || '',
-      tipos: Array.isArray(p.tipos) ? p.tipos : (p.tipo ? [p.tipo] : []),
-      img: p.img || '',
-      desc: p.desc ? p.desc.substring(0, 80) : ''
-    };
-  });
-  indiceCompleto = indice;
-  return indice;
+  indiceCompleto = snap.docs.map(d => entradaIndice({ ...d.data(), id: d.id }));
+  return indiceCompleto;
 }
 
 // Guarda/actualiza UN producto en su propio documento
@@ -477,10 +499,10 @@ async function guardarProductoEnFirebase(prod){
   if(!prod.id) prod.id = docRef.id;   // guardar el ID en el objeto
   await docRef.set(prod);
 
-  // Actualizar timestamp + índice de búsqueda en la misma escritura
+  // Actualizar índice de búsqueda en memoria (incremental, sin lecturas extra)
+  upsertEnIndice(prod);
   const ts = Date.now();
-  const indice = await reconstruirIndiceBusqueda();
-  await META_REF.set({ lastModified: ts, indice }, { merge: true });
+  await META_REF.set({ lastModified: ts, indice: indiceCompleto }, { merge: true });
   try { localStorage.setItem('cache_ts', String(ts)); } catch(e) {}
   return prod;
 }
@@ -489,10 +511,10 @@ async function guardarProductoEnFirebase(prod){
 async function eliminarProductoEnFirebase(prodId){
   await PRODS_COL.doc(prodId).delete();
 
-  // Actualizar timestamp + índice de búsqueda en la misma escritura
+  // Actualizar índice de búsqueda en memoria (incremental, sin lecturas extra)
+  quitarDeIndice(prodId);
   const ts = Date.now();
-  const indice = await reconstruirIndiceBusqueda();
-  await META_REF.set({ lastModified: ts, indice }, { merge: true });
+  await META_REF.set({ lastModified: ts, indice: indiceCompleto }, { merge: true });
   try { localStorage.setItem('cache_ts', String(ts)); } catch(e) {}
 }
 
@@ -2283,9 +2305,14 @@ function ejecutarBusqueda(query){
     const card = document.createElement('div');
     card.className = 'search-card';
     const cats = Array.isArray(p.tipos) ? p.tipos.join(' · ') : (p.tipo || '');
+    // Los resultados que vienen del índice liviano no traen `img` (para no
+    // superar el límite de tamaño del documento). Si no hay imagen todavía,
+    // mostramos el recuadro vacío (el fondo de .search-card-img ya sirve de
+    // placeholder) — al abrir el producto se trae la imagen real.
+    const imgHtml = p.img ? `<img src="${p.img}" alt="${p.nombre}">` : '';
     card.innerHTML = `
       <div class="search-card-img">
-        <img src="${p.img}" alt="${p.nombre}">
+        ${imgHtml}
       </div>
       <div class="search-card-info">
         <div class="search-card-cat">${cats}</div>
