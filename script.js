@@ -434,14 +434,21 @@ async function guardarMetaEnFirebase(){
   // Recalcular lista de categorías conocidas para el loader paginado
   const cats = getCategorias();
   const ts = Date.now();
+  // IMPORTANTE: usar merge:true (y mandar el índice también) — esta función
+  // se llama muy seguido (ocultar producto, eliminar, reordenar, etc.) y un
+  // .set() sin merge REEMPLAZA todo el documento _meta, borrando el campo
+  // `indice` que guarda el catálogo completo para el buscador. Sin esto,
+  // el buscador termina encontrando solo lo que está cargado en memoria
+  // (los carruseles ya scrolleados) en vez de TODO el catálogo.
   await META_REF.set({
     categoriasOcultas,
     categoriaOrden,
     ordenCategorias,
     productosOcultos,
     categorias: cats,
+    indice: indiceCompleto,
     lastModified: ts
-  });
+  }, { merge: true });
   try {
     localStorage.setItem('meta_cache', JSON.stringify({
       categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos
@@ -524,13 +531,13 @@ async function guardarEnFirebase(){
   try {
     const batch = db.batch();
 
-    // 1. Metadata
+    // 1. Metadata (merge:true para no pisar el campo `indice` en el medio)
     batch.set(META_REF, {
       categoriasOcultas,
       categoriaOrden,
       ordenCategorias,
       productosOcultos
-    });
+    }, { merge: true });
 
     // 2. Obtener IDs actuales en Firestore para detectar eliminados
     const existentes = await PRODS_COL.get({ source: 'server' });
