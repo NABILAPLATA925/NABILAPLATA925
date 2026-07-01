@@ -15,6 +15,7 @@ auth.onAuthStateChanged(user => {
   if(user && ADMIN_REQUEST){
     ADMIN_MODE = true;
     document.body.classList.add('admin');
+    document.body.classList.add('admin-mode');
     document.getElementById('admin-bar').style.display = 'flex';
   } else if(user && !ADMIN_REQUEST){
     // Sesión activa pero URL normal → cerrar sesión silenciosamente
@@ -617,6 +618,7 @@ async function submitLogin(){
     document.getElementById('login-modal').classList.remove('active');
     ADMIN_MODE = true;
     document.body.classList.add('admin');
+    document.body.classList.add('admin-mode');
     document.getElementById('admin-bar').style.display = 'flex';
     buildAllCarousels(); // reconstruir cards con botones de admin
   } catch {
