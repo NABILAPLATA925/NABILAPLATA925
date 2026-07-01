@@ -31,6 +31,7 @@ const productosDefault = SITE_CONFIG.productosDefault;
 //  ESTADO GLOBAL
 // ════════════════════════════════════════════════════════
 let productos = [];
+let indiceCompleto = []; // Índice liviano {id,nombre,tipos,img,desc} de TODO el catálogo, para el buscador
 let carrito = []; // Variable global para guardar el pedido
 let posCarrusel = {};       // { catId: posicion }
 let carruselProds = {};     // { catId: [productos del carrusel] }
@@ -239,6 +240,9 @@ async function cargarDesdeFirebase(){
       categoriaOrden    = Array.isArray(m.categoriaOrden)    ? m.categoriaOrden    : [];
       ordenCategorias   = m.ordenCategorias || {};
       productosOcultos  = Array.isArray(m.productosOcultos)  ? m.productosOcultos  : [];
+      // Índice liviano del catálogo completo para el buscador.
+      // Viene en el mismo doc de metadata → no suma lecturas extra.
+      indiceCompleto    = Array.isArray(m.indice) ? m.indice : [];
       // Categorías conocidas vienen del meta para no necesitar un query extra
       if(Array.isArray(m.categorias) && m.categorias.length){
         // Cargar primer batch por cada categoría
@@ -364,23 +368,12 @@ async function cargarMasEnCategoria(cat){
   if(btnPrev) btnPrev.style.display = total <= visible ? 'none' : '';
   if(btnNext) btnNext.style.display = total <= visible ? 'none' : '';
 
-  // Actualizar el track de "todos" con los nuevos productos en memoria
-  // (reconstrucción limpia — evita duplicados y sincronización manual compleja)
+  // Agregar SOLO los productos nuevos al final del track "todos"
+  // (sin reconstruirlo → no resetea scroll ni posición del carrusel)
   if(nuevosVisibles.length > 0){
-    const trackTodos = document.getElementById('carrusel-track-todos');
-    if(trackTodos){
-      const cats = getCategorias().filter(c => !categoriasOcultas.includes(c));
-      const idsYa = new Set();
-      const prodsTodos = [];
-      cats.forEach(c => {
-        productos.forEach(p => {
-          const lista = Array.isArray(p.tipos) ? p.tipos : [p.tipo];
-          if(lista.includes(c) && !idsYa.has(p.id)){ idsYa.add(p.id); prodsTodos.push(p); }
-        });
-      });
-      productos.forEach(p => { if(!idsYa.has(p.id)){ idsYa.add(p.id); prodsTodos.push(p); } });
-      buildTrack('todos', prodsTodos);
-    }
+    const idsEnTodos = new Set((carruselProds['todos'] || []).map(p => p.id));
+    const paraAgregar = nuevosVisibles.filter(p => !idsEnTodos.has(p.id));
+    apendarATrackTodos(paraAgregar);
   }
 }
 
@@ -422,28 +415,17 @@ async function cargarMasEnTodos(){
     return;
   }
 
-  // Reconstruir el carrusel "todos" con los productos actualizados en memoria
+  // Agregar SOLO los productos nuevos al final del track "todos"
+  // (sin reconstruirlo → no resetea scroll ni posición del carrusel)
   const trackTodos = document.getElementById('carrusel-track-todos');
   if(!trackTodos) return;
 
-  // Reconstruir desde cero el track de "todos" con todos los productos en memoria
-  const idsYa = new Set();
-  const prodsTodos = [];
-  cats.forEach(cat => {
-    productos.forEach(p => {
-      const lista = Array.isArray(p.tipos) ? p.tipos : [p.tipo];
-      if(lista.includes(cat) && !idsYa.has(p.id)){
-        idsYa.add(p.id);
-        prodsTodos.push(p);
-      }
-    });
-  });
-  // Productos sin categoría visible
-  productos.forEach(p => {
-    if(!idsYa.has(p.id)){ idsYa.add(p.id); prodsTodos.push(p); }
-  });
+  const idsEnTodos = new Set((carruselProds['todos'] || []).map(p => p.id));
+  const paraAgregar = productos.filter(p =>
+    !idsEnTodos.has(p.id) && (ADMIN_MODE || !productosOcultos.includes(p.id))
+  );
 
-  buildTrack('todos', prodsTodos);
+  apendarATrackTodos(paraAgregar);
 }
 
 // Guarda SOLO la metadata (categorías, orden, visibilidad)
@@ -467,6 +449,26 @@ async function guardarMetaEnFirebase(){
   } catch(e) {}
 }
 
+// Reconstruye el índice liviano {id,nombre,tipos,img,desc} de TODO el catálogo
+// y lo guarda dentro del doc de metadata. Solo se llama desde el admin
+// (al guardar/eliminar un producto), nunca en la carga normal del sitio,
+// así que no afecta las lecturas de los visitantes.
+async function reconstruirIndiceBusqueda(){
+  const snap = await PRODS_COL.get({ source: 'server' });
+  const indice = snap.docs.map(d => {
+    const p = d.data();
+    return {
+      id: d.id,
+      nombre: p.nombre || '',
+      tipos: Array.isArray(p.tipos) ? p.tipos : (p.tipo ? [p.tipo] : []),
+      img: p.img || '',
+      desc: p.desc ? p.desc.substring(0, 80) : ''
+    };
+  });
+  indiceCompleto = indice;
+  return indice;
+}
+
 // Guarda/actualiza UN producto en su propio documento
 async function guardarProductoEnFirebase(prod){
   const docRef = prod.id
@@ -474,9 +476,11 @@ async function guardarProductoEnFirebase(prod){
     : PRODS_COL.doc();                // nuevo ID automático
   if(!prod.id) prod.id = docRef.id;   // guardar el ID en el objeto
   await docRef.set(prod);
-  // Actualizar timestamp de última modificación
+
+  // Actualizar timestamp + índice de búsqueda en la misma escritura
   const ts = Date.now();
-  await META_REF.set({ lastModified: ts }, { merge: true });
+  const indice = await reconstruirIndiceBusqueda();
+  await META_REF.set({ lastModified: ts, indice }, { merge: true });
   try { localStorage.setItem('cache_ts', String(ts)); } catch(e) {}
   return prod;
 }
@@ -484,9 +488,11 @@ async function guardarProductoEnFirebase(prod){
 // Elimina UN producto de Firestore
 async function eliminarProductoEnFirebase(prodId){
   await PRODS_COL.doc(prodId).delete();
-  // Actualizar timestamp de última modificación
+
+  // Actualizar timestamp + índice de búsqueda en la misma escritura
   const ts = Date.now();
-  await META_REF.set({ lastModified: ts }, { merge: true });
+  const indice = await reconstruirIndiceBusqueda();
+  await META_REF.set({ lastModified: ts, indice }, { merge: true });
   try { localStorage.setItem('cache_ts', String(ts)); } catch(e) {}
 }
 
@@ -526,7 +532,17 @@ async function guardarEnFirebase(){
 
     await batch.commit();
     const ts = Date.now();
-    await META_REF.set({ lastModified: ts }, { merge: true });
+    // El índice de búsqueda se arma directo desde `productos` (ya está todo en memoria
+    // acá), sin necesidad de leer la colección de nuevo
+    const indice = productos.map(p => ({
+      id: p.id,
+      nombre: p.nombre || '',
+      tipos: Array.isArray(p.tipos) ? p.tipos : (p.tipo ? [p.tipo] : []),
+      img: p.img || '',
+      desc: p.desc ? p.desc.substring(0, 80) : ''
+    }));
+    indiceCompleto = indice;
+    await META_REF.set({ lastModified: ts, indice }, { merge: true });
     try {
       // No se cachean productos — siempre se leen frescos desde Firestore
       localStorage.setItem('cache_ts', String(ts));
@@ -650,6 +666,16 @@ async function inicializar(){
   const loadingEl = document.getElementById('carrusel-loading');
   if (loadingEl) loadingEl.style.display = 'none';
   buildAllCarousels();
+
+  // Generación automática del índice de búsqueda (una sola vez).
+  // Si sos admin y el índice todavía no existe en Firestore, se arma solo
+  // en segundo plano — no hace falta editar productos a mano.
+  if(ADMIN_MODE && !indiceCompleto.length){
+    reconstruirIndiceBusqueda()
+      .then(indice => META_REF.set({ indice }, { merge: true }))
+      .then(() => console.log('Índice de búsqueda generado automáticamente (' + indiceCompleto.length + ' productos).'))
+      .catch(err => console.warn('No se pudo generar el índice de búsqueda automáticamente:', err));
+  }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -969,6 +995,59 @@ function buildTrack(catId, prods){
   const ocultar = totalGrupos <= 1;
   if(btnPrev) btnPrev.style.display = ocultar ? 'none' : '';
   if(btnNext) btnNext.style.display = ocultar ? 'none' : '';
+}
+
+// Agrega productos nuevos al final del track "todos" SIN reconstruirlo
+// (evita el reset de scroll/posición del carrusel)
+function apendarATrackTodos(nuevosVisibles){
+  const catId = 'todos';
+  const track = document.getElementById('carrusel-track-' + catId);
+  if(!track || !nuevosVisibles.length) return;
+  if(!carruselProds[catId]) carruselProds[catId] = [];
+
+  const cardW = getCardWidth();
+  nuevosVisibles.forEach(p => carruselProds[catId].push(p));
+
+  if(esMobile()){
+    const totalAhora = carruselProds[catId].length;
+    const totalAntes = totalAhora - nuevosVisibles.length;
+    const restoAnterior = totalAntes % 4;
+    if(restoAnterior !== 0 && track.lastChild){
+      track.removeChild(track.lastChild);
+    }
+    const aRenderizar = restoAnterior !== 0
+      ? carruselProds[catId].slice(totalAntes - restoAnterior)
+      : nuevosVisibles;
+    for(let i = 0; i < aRenderizar.length; i += 4){
+      const grupo = aRenderizar.slice(i, i + 4);
+      const grp = document.createElement('div');
+      grp.className = 'carrusel-grupo-mobile';
+      grp.style.flex = `0 0 ${cardW * 2 + 10}px`;
+      grp.style.display = 'grid';
+      grp.style.gridTemplateColumns = '1fr 1fr';
+      grp.style.gap = '8px';
+      grupo.forEach(p => {
+        const card = crearCard(p, false);
+        card.style.flex = '';
+        card.style.width = '100%';
+        grp.appendChild(card);
+      });
+      track.appendChild(grp);
+    }
+  } else {
+    nuevosVisibles.forEach(p => {
+      const card = crearCard(p, false);
+      card.style.flex = `0 0 ${cardW}px`;
+      track.appendChild(card);
+    });
+  }
+
+  const visible = visiblePorPantalla();
+  const total   = carruselProds[catId].length;
+  const btnPrev = document.getElementById('btn-prev-todos');
+  const btnNext = document.getElementById('btn-next-todos');
+  if(btnPrev) btnPrev.style.display = total <= visible ? 'none' : '';
+  if(btnNext) btnNext.style.display = total <= visible ? 'none' : '';
 }
 
 function crearCard(p, esClonado){
@@ -2170,15 +2249,20 @@ function ejecutarBusqueda(query){
           <div class="search-card-desc">${p.desc ? p.desc.substring(0,80)+'…' : ''}</div>
         </div>
         <button class="search-card-btn">Ver</button>`;
-      card.addEventListener('click', () => { cerrarBuscador(); openModal(p); });
+      card.addEventListener('click', () => abrirProductoDesdeBuscador(p.id));
       resultsEl.appendChild(card);
     });
     return;
   }
 
+  // Buscamos sobre el ÍNDICE COMPLETO (todo el catálogo), no solo lo ya cargado.
+  // Si el índice todavía no llegó por alguna razón, caemos a `productos` como respaldo.
+  const fuente = indiceCompleto.length ? indiceCompleto : productos;
+
   const palabras = q.toLowerCase().split(/\s+/).filter(Boolean);
-  const encontrados = productos.filter(p => {
-    const titulo = p.nombre.toLowerCase();
+  const encontrados = fuente.filter(p => {
+    if(!ADMIN_MODE && productosOcultos.includes(p.id)) return false;
+    const titulo = (p.nombre || '').toLowerCase();
     return palabras.some(w => titulo.includes(w));
   });
 
@@ -2209,9 +2293,28 @@ function ejecutarBusqueda(query){
         <div class="search-card-desc">${p.desc ? p.desc.substring(0,80)+'…' : ''}</div>
       </div>
       <button class="search-card-btn">Ver</button>`;
-    card.addEventListener('click', () => { cerrarBuscador(); openModal(p); });
+    card.addEventListener('click', () => abrirProductoDesdeBuscador(p.id));
     resultsEl.appendChild(card);
   });
+}
+
+// Abre un producto encontrado en el buscador. Si ya está en memoria (batch cargado)
+// lo abre directo; si no, lo trae con UNA lectura puntual a Firestore antes de abrir.
+async function abrirProductoDesdeBuscador(prodId){
+  cerrarBuscador();
+  let prod = productos.find(x => x.id === prodId);
+  if(!prod){
+    try {
+      const doc = await PRODS_COL.doc(prodId).get();
+      if(doc.exists){
+        prod = { ...doc.data(), id: doc.id };
+        productos.push(prod);
+      }
+    } catch(err){
+      console.warn('No se pudo cargar el producto:', err);
+    }
+  }
+  if(prod) openModal(prod);
 }
 
 function resaltarPalabras(texto, palabras){

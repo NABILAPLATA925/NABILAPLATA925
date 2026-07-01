@@ -140,3 +140,19 @@ const SITE_CONFIG = {
 
   productosDefault: []
 };
+
+
+/*
+MODIFICAR ESA PARTE EN style.css para ajustar separacion en pantalla principal (modificar lo que diga margin-bottom: rem)
+
+.hero-content{position:relative;z-index:2;text-align:center;max-width:700px;padding:2rem}
+  .hero-eyebrow{font-size:11px;letter-spacing:5px;text-transform:uppercase;color:var(--principal);margin-bottom:1rem;opacity:0;transform:translateY(14px);transition:opacity .72s ease, transform .72s ease}
+   #hero-eyebrow-2{margin-bottom:2.5rem}
+  .hero-title{font-family:var(--font-titulo-pagina),serif;font-size:clamp(52px,8vw,88px);font-weight:300;line-height:1.05;color:var(--text);margin-bottom:1.2rem;opacity:0;transform:translateY(14px);transition:opacity .72s ease, transform .72s ease}
+  .hero-title em{color:var(--principal);font-style:italic}
+  .hero-title-img-wrap{background:transparent;margin-bottom:2rem;opacity:0;transform:translateY(14px);transition:opacity .72s ease, transform .72s ease}
+  .hero-title-img-wrap img{background:transparent;mix-blend-mode:multiply}
+  .hero-subtitle{font-size:15px;font-weight:300;color:var(--text-soft);letter-spacing:1px;line-height:1.8;margin-bottom:2rem;opacity:0;transform:translateY(14px);transition:opacity .72s ease, transform .72s ease}
+  .hero-cta{display:inline-flex;gap:1rem;flex-wrap:wrap;justify-content:center;opacity:0;transform:translateY(14px);transition:opacity .72s ease, transform .72s ease}
+
+*/
