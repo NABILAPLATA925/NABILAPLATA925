@@ -457,27 +457,51 @@ async function guardarMetaEnFirebase(){
   } catch(e) {}
 }
 
-// Reconstruye el índice liviano {id,nombre,tipos,img,desc} de TODO el catálogo
+// Genera una miniatura MUY chica (unos 40px) en base64 a partir de la imagen
+// ya comprimida del producto. Se usa solo para el índice de búsqueda: al
+// pesar unos pocos KB en vez de las decenas/cientos de KB de la imagen
+// completa, permite meter una imagen por producto en el índice sin superar
+// el límite de 1MB del documento de Firestore, incluso con cientos de
+// productos.
+function generarThumbnail(base64){
+  return new Promise(resolve => {
+    if(!base64){ resolve(''); return; }
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 40;
+      let w = img.width, h = img.height;
+      if(w >= h){ h = Math.round(h * MAX / w) || 1; w = MAX; }
+      else { w = Math.round(w * MAX / h) || 1; h = MAX; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.45));
+    };
+    img.onerror = () => resolve('');
+    img.src = base64;
+  });
+}
+
+// Reconstruye el índice liviano {id,nombre,tipos,imgThumb,desc} de TODO el catálogo
 // y lo guarda dentro del doc de metadata. Solo se llama desde el admin
 // (al guardar/eliminar un producto), nunca en la carga normal del sitio,
 // así que no afecta las lecturas de los visitantes.
 // Arma la entrada liviana de índice para UN producto
-function entradaIndice(p){
+async function entradaIndice(p){
+  // Miniatura chiquita (no la imagen completa, ver generarThumbnail arriba).
+  const imgThumb = await generarThumbnail(p.img);
   return {
     id: p.id,
     nombre: p.nombre || '',
     tipos: Array.isArray(p.tipos) ? p.tipos : (p.tipo ? [p.tipo] : []),
-    // OJO: NO incluir `img` acá — las imágenes se guardan en base64 y son
-    // pesadas; con 100+ productos el doc de índice supera el límite de 1MB
-    // de Firestore. El buscador no necesita la imagen para filtrar por nombre;
-    // la imagen real se muestra recién cuando se abre el producto.
+    imgThumb,
     desc: p.desc ? p.desc.substring(0, 80) : ''
   };
 }
 
 // Agrega o actualiza UNA entrada en el índice en memoria (sin leer Firestore)
-function upsertEnIndice(prod){
-  const entrada = entradaIndice(prod);
+async function upsertEnIndice(prod){
+  const entrada = await entradaIndice(prod);
   const i = indiceCompleto.findIndex(p => p.id === prod.id);
   if(i >= 0) indiceCompleto[i] = entrada;
   else indiceCompleto.push(entrada);
@@ -489,13 +513,16 @@ function quitarDeIndice(prodId){
 }
 
 // Reconstruye el índice completo LEYENDO toda la colección.
-// Solo se usa una vez, cuando el índice todavía no existe (bootstrap inicial).
+// Se usa cuando el índice todavía no existe, o cuando existe pero es de una
+// versión vieja sin miniaturas (bootstrap / migración).
 // No se llama en cada guardado/eliminación — eso se maneja de forma incremental
 // con upsertEnIndice/quitarDeIndice para no sumar lecturas ni depender de una
 // query pesada cada vez que se edita un producto.
 async function reconstruirIndiceBusqueda(){
   const snap = await PRODS_COL.get({ source: 'server' });
-  indiceCompleto = snap.docs.map(d => entradaIndice({ ...d.data(), id: d.id }));
+  indiceCompleto = await Promise.all(
+    snap.docs.map(d => entradaIndice({ ...d.data(), id: d.id }))
+  );
   return indiceCompleto;
 }
 
@@ -508,7 +535,7 @@ async function guardarProductoEnFirebase(prod){
   await docRef.set(prod);
 
   // Actualizar índice de búsqueda en memoria (incremental, sin lecturas extra)
-  upsertEnIndice(prod);
+  await upsertEnIndice(prod);
   const ts = Date.now();
   await META_REF.set({ lastModified: ts, indice: indiceCompleto }, { merge: true });
   try { localStorage.setItem('cache_ts', String(ts)); } catch(e) {}
@@ -563,14 +590,9 @@ async function guardarEnFirebase(){
     await batch.commit();
     const ts = Date.now();
     // El índice de búsqueda se arma directo desde `productos` (ya está todo en memoria
-    // acá), sin necesidad de leer la colección de nuevo
-    const indice = productos.map(p => ({
-      id: p.id,
-      nombre: p.nombre || '',
-      tipos: Array.isArray(p.tipos) ? p.tipos : (p.tipo ? [p.tipo] : []),
-      img: p.img || '',
-      desc: p.desc ? p.desc.substring(0, 80) : ''
-    }));
+    // acá), sin necesidad de leer la colección de nuevo. Usamos entradaIndice() para
+    // generar la miniatura chica de cada uno (no la imagen completa).
+    const indice = await Promise.all(productos.map(p => entradaIndice(p)));
     indiceCompleto = indice;
     await META_REF.set({ lastModified: ts, indice }, { merge: true });
     try {
@@ -699,9 +721,11 @@ async function inicializar(){
   buildAllCarousels();
 
   // Generación automática del índice de búsqueda (una sola vez).
-  // Si sos admin y el índice todavía no existe en Firestore, se arma solo
+  // Si sos admin y el índice todavía no existe en Firestore, o existe pero
+  // es de una versión vieja sin miniaturas (imgThumb), se reconstruye solo
   // en segundo plano — no hace falta editar productos a mano.
-  if(ADMIN_MODE && !indiceCompleto.length){
+  const indiceDesactualizado = indiceCompleto.length && !indiceCompleto.some(p => p.imgThumb);
+  if(ADMIN_MODE && (!indiceCompleto.length || indiceDesactualizado)){
     reconstruirIndiceBusqueda()
       .then(indice => META_REF.set({ indice }, { merge: true }))
       .then(() => console.log('Índice de búsqueda generado automáticamente (' + indiceCompleto.length + ' productos).'))
@@ -2420,11 +2444,11 @@ function ejecutarBusqueda(query){
     const card = document.createElement('div');
     card.className = 'search-card';
     const cats = Array.isArray(p.tipos) ? p.tipos.join(' · ') : (p.tipo || '');
-    // Los resultados que vienen del índice liviano no traen `img` (para no
-    // superar el límite de tamaño del documento). Si no hay imagen todavía,
-    // mostramos el recuadro vacío (el fondo de .search-card-img ya sirve de
-    // placeholder) — al abrir el producto se trae la imagen real.
-    const imgHtml = p.img ? `<img src="${p.img}" alt="${p.nombre}">` : '';
+    // Los resultados que vienen del índice liviano traen `imgThumb` (una
+    // miniatura chica); si por algún motivo viene de `productos` en memoria
+    // (fallback), va a tener `img` completo en su lugar.
+    const imgSrc = p.imgThumb || p.img || '';
+    const imgHtml = imgSrc ? `<img src="${imgSrc}" alt="${p.nombre}">` : '';
     card.innerHTML = `
       <div class="search-card-img">
         ${imgHtml}
