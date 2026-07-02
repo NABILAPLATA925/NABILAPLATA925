@@ -318,6 +318,17 @@
       <label>Precio</label>
       <input type="text" id="a-precio" placeholder="Ej: $25.000">
     </div>
+    <div class="admin-field oferta-check-field">
+      <label class="oferta-check-label">
+        <input type="checkbox" id="a-es-oferta" onchange="toggleCampoOferta()">
+        <span>🏷 Agregar a la sección OFERTAS</span>
+      </label>
+    </div>
+    <div class="admin-field oferta-precio-field" id="a-oferta-wrap" style="display:none">
+      <label>Precio final con descuento *</label>
+      <input type="text" id="a-precio-oferta" placeholder="Ej: $18.000">
+      <p style="margin:4px 0 0;font-size:11px;color:var(--text-soft)">El precio de arriba se mostrará tachado y este precio se destacará como el nuevo precio de oferta.</p>
+    </div>
     <div class="admin-field">
       <label>Categorías * <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(podés elegir más de una)</span></label>
       <div id="a-tipos-checks" style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 0;min-height:36px"></div>

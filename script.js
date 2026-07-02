@@ -38,6 +38,15 @@ let carrito = []; // Variable global para guardar el pedido
 let posCarrusel = {};       // { catId: posicion }
 let carruselProds = {};     // { catId: [productos del carrusel] }
 
+// ── OFERTAS ──────────────────────────────────────────────────────
+// "Ofertas" se maneja como una categoría más (reutiliza todo el motor
+// de carruseles/orden/visibilidad ya existente: si no tiene productos,
+// simplemente no se construye su sección y queda invisible), pero se
+// gestiona con su propio checkbox en el modal de producto en lugar de
+// aparecer en la lista de categorías normales, y siempre se muestra
+// primera si tiene al menos un producto.
+const OFERTA_CAT = 'Ofertas';
+
 // ── PAGINACIÓN por carrusel ────────────────────────────────────
 // catKey = nombre de categoría (o 'todos')
 const paginacion = {};
@@ -892,12 +901,17 @@ function getCategorias(){
     lista.forEach(c => { if(c && !cats.includes(c)) cats.push(c); });
   });
   // Aplicar orden personalizado si existe
+  let resultado = cats;
   if(categoriaOrden.length > 0){
     const ordenadas = categoriaOrden.filter(c => cats.includes(c));
     const nuevas = cats.filter(c => !categoriaOrden.includes(c));
-    return [...ordenadas, ...nuevas];
+    resultado = [...ordenadas, ...nuevas];
   }
-  return cats;
+  // "Ofertas" siempre va primera si existe (destacada arriba de todo)
+  if(resultado.includes(OFERTA_CAT)){
+    resultado = [OFERTA_CAT, ...resultado.filter(c => c !== OFERTA_CAT)];
+  }
+  return resultado;
 }
 
 function esMobile(){ return window.innerWidth <= 768; }
@@ -1015,7 +1029,7 @@ function buildAllCarousels(){
 
 function crearSeccionCarrusel(cat, catId, showDivider){
   const section = document.createElement('div');
-  section.className = 'cat-section';
+  section.className = 'cat-section' + (cat === OFERTA_CAT ? ' cat-section-ofertas' : '');
   section.id = 'section-' + catId;
 
   if(showDivider){
@@ -1026,7 +1040,9 @@ function crearSeccionCarrusel(cat, catId, showDivider){
 
   const header = document.createElement('div');
   header.className = 'cat-section-header';
-  header.innerHTML = `<span class="section-label cat-label">${cat}</span>`;
+  header.innerHTML = cat === OFERTA_CAT
+    ? `<span class="section-label cat-label cat-label-ofertas">🏷 ${cat}</span>`
+    : `<span class="section-label cat-label">${cat}</span>`;
   section.appendChild(header);
 
   const wrapper = document.createElement('div');
@@ -1151,18 +1167,28 @@ function apendarATrackTodos(nuevosVisibles){
   if(btnNext) btnNext.style.display = total <= visible ? 'none' : '';
 }
 
+function esProductoEnOferta(p){
+  return !!p.enOferta && !!p.precioOferta;
+}
+
 function crearCard(p, esClonado){
   const card = document.createElement('div');
   card.dataset.prodId = p.id;          
   const estaOculto = productosOcultos.includes(p.id);
-  card.className = 'producto-card' + (estaOculto ? ' producto-oculto' : '');
+  const enOferta = esProductoEnOferta(p);
+  card.className = 'producto-card' + (estaOculto ? ' producto-oculto' : '') + (enOferta ? ' producto-oferta' : '');
+  const precioHTML = enOferta
+    ? `<div class="prod-precio-row"><span class="prod-precio-tachado">${p.precio}</span><span class="prod-precio-oferta">${p.precioOferta}</span></div>`
+    : (p.precio ? `<div class="prod-precio-row"><span class="prod-precio-normal">${p.precio}</span></div>` : '');
   card.innerHTML = `
+    ${enOferta ? '<div class="oferta-ribbon">Oferta</div>' : ''}
     <div class="prod-img-placeholder">
       <img src="${p.img}" alt="${p.nombre}">
     </div>
     <div class="prod-info">
       <div class="prod-tipo">${Array.isArray(p.tipos) ? p.tipos[0] : p.tipo}</div>
       <div class="prod-name">${p.nombre}</div>
+      ${precioHTML}
     </div>
     <div class="prod-overlay">
       <h3>${p.nombre}</h3>
@@ -1283,9 +1309,18 @@ function moverCarrusel(catId, dir){
 //  MODAL PRODUCTO
 // ════════════════════════════════════════════════════════
 function openModal(p){
-  document.getElementById('modal-tipo').textContent  = Array.isArray(p.tipos) ? p.tipos.join(' · ') : p.tipo;
+  const tiposModal = Array.isArray(p.tipos) ? p.tipos.filter(t => t !== OFERTA_CAT) : [p.tipo];
+  document.getElementById('modal-tipo').textContent  = tiposModal.join(' · ');
   document.getElementById('modal-title').textContent = p.nombre;
-  document.getElementById('modal-precio').textContent = p.precio ? p.precio : '';
+
+  const modalPrecioEl = document.getElementById('modal-precio');
+  if(esProductoEnOferta(p)){
+    modalPrecioEl.innerHTML = `<span class="oferta-ribbon-modal">Oferta</span>
+      <span class="modal-precio-tachado">${p.precio}</span>
+      <span class="modal-precio-oferta">${p.precioOferta}</span>`;
+  } else {
+    modalPrecioEl.textContent = p.precio ? p.precio : '';
+  }
   document.getElementById('modal-desc').textContent  = p.desc;
   
   const imgContainer = document.getElementById('modal-img');
@@ -1618,13 +1653,27 @@ let fotosBase64 = [];      // array de todas las fotos
 let portadaIdx = 0;        // índice de la foto de portada
 let productoEditando = null;
 
+// Muestra/oculta el campo "Precio final con descuento" según el checkbox de oferta
+function toggleCampoOferta(){
+  const checked = document.getElementById('a-es-oferta').checked;
+  document.getElementById('a-oferta-wrap').style.display = checked ? 'block' : 'none';
+}
+
+function resetCampoOferta(){
+  document.getElementById('a-es-oferta').checked = false;
+  document.getElementById('a-precio-oferta').value = '';
+  document.getElementById('a-oferta-wrap').style.display = 'none';
+}
+
 function abrirModalAgregar(){
   productoEditando = null;
   fotosBase64 = [];
   portadaIdx = 0;
   document.getElementById('a-nombre').value = '';
+  document.getElementById('a-precio').value = '';
   document.getElementById('a-desc').value   = '';
   poblarSelectTipo('');
+  resetCampoOferta();
   document.querySelector('.admin-modal h2').textContent = 'Nuevo producto';
   renderFotosGrid();
   document.getElementById('admin-modal').classList.add('active');
@@ -1639,6 +1688,7 @@ function cerrarAdminModal(e){
   document.getElementById('a-nombre').value = '';
   document.getElementById('a-desc').value   = '';
   poblarSelectTipo([]);
+  resetCampoOferta();
   renderFotosGrid();
   document.querySelector('.admin-modal h2').textContent = 'Nuevo producto';
 }
@@ -1748,7 +1798,9 @@ function poblarSelectTipo(seleccionados = []){
   const opcionesFijas = SITE_CONFIG.categoriasFijas;
   const existentes = getCategorias();
   const extras = existentes.filter(c => !opcionesFijas.includes(c));
-  const todas = [...new Set([...opcionesFijas, ...extras])];
+  // "Ofertas" no se elige acá como categoría normal: se gestiona con el
+  // checkbox dedicado "Agregar a la sección OFERTAS" del mismo modal.
+  const todas = [...new Set([...opcionesFijas, ...extras])].filter(c => c !== OFERTA_CAT);
 
   const container = document.getElementById('a-tipos-checks');
   container.innerHTML = '';
@@ -1783,32 +1835,53 @@ async function guardarProducto(){
 
   // Nueva categoría escrita a mano
   const nuevaCatInput = document.getElementById('a-tipo-nueva').value.trim();
-  if(nuevaCatInput) tiposSeleccionados.push(nuevaCatInput);
+  if(nuevaCatInput && nuevaCatInput !== OFERTA_CAT) tiposSeleccionados.push(nuevaCatInput);
 
   if(!nombre)    { alert('Por favor ingresá el nombre del producto.'); return; }
   if(!tiposSeleccionados.length){ alert('Por favor seleccioná al menos una categoría.'); return; }
   if(!fotosBase64.length){ alert('Por favor subí al menos una foto del producto.'); return; }
+
+  // ── OFERTA ────────────────────────────────────────────────────
+  const esOferta = document.getElementById('a-es-oferta').checked;
+  const precioOfertaInput = document.getElementById('a-precio-oferta').value.trim();
+  if(esOferta){
+    if(!precio){ alert('Para agregar el producto a Ofertas, ingresá primero el precio original.'); return; }
+    if(!precioOfertaInput){ alert('Ingresá el precio final con descuento para la oferta.'); return; }
+  }
+  const precioOferta = (esOferta && precioOfertaInput)
+    ? '$' + Number(precioOfertaInput.replace(/\D/g, '')).toLocaleString('es-AR')
+    : '';
+
+  // "Ofertas" se agrega/quita del listado de categorías del producto
+  // al final, para no pisar la categoría principal que se muestra en la card
+  const tiposFinal = tiposSeleccionados.filter(t => t !== OFERTA_CAT);
+  if(esOferta) tiposFinal.push(OFERTA_CAT);
 
   const reordenadas = [fotosBase64[portadaIdx], ...fotosBase64.filter((_,i)=>i!==portadaIdx)];
   const imgPortada = reordenadas[0];
 
   if(productoEditando){
     productoEditando.nombre = nombre;
-    productoEditando.tipos  = tiposSeleccionados;
-    productoEditando.tipo   = tiposSeleccionados[0]; // compatibilidad legacy
+    productoEditando.tipos  = tiposFinal;
+    productoEditando.tipo   = tiposFinal[0]; // compatibilidad legacy
     productoEditando.desc   = desc;
     productoEditando.precio = precio;
     productoEditando.img    = imgPortada;
     productoEditando.imgs   = reordenadas;
+    productoEditando.enOferta = esOferta;
+    if(esOferta) productoEditando.precioOferta = precioOferta;
+    else delete productoEditando.precioOferta;
   } else {
     productos.push({
       nombre,
       precio,
-      tipo: tiposSeleccionados[0],
-      tipos: tiposSeleccionados,
+      tipo: tiposFinal[0],
+      tipos: tiposFinal,
       desc,
       img: imgPortada,
-      imgs: reordenadas
+      imgs: reordenadas,
+      enOferta: esOferta,
+      ...(esOferta ? { precioOferta } : {})
     });
   }
 
@@ -1840,6 +1913,10 @@ function abrirModalEditar(p){
   const tiposActuales = Array.isArray(p.tipos) ? p.tipos : [p.tipo];
   poblarSelectTipo(tiposActuales);
   document.getElementById('a-desc').value   = p.desc;
+  const estaEnOferta = esProductoEnOferta(p);
+  document.getElementById('a-es-oferta').checked = estaEnOferta;
+  document.getElementById('a-precio-oferta').value = estaEnOferta ? (p.precioOferta || '').replace('$','') : '';
+  document.getElementById('a-oferta-wrap').style.display = estaEnOferta ? 'block' : 'none';
   fotosBase64 = p.imgs && p.imgs.length > 0 ? [...p.imgs] : [p.img];
   portadaIdx = 0;
   renderFotosGrid();

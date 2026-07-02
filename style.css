@@ -619,6 +619,88 @@
   border-radius:4px;
 }
 
+/* ── OFERTAS ─────────────────────────────────────────────── */
+
+/* Cinta "Oferta" sobre la card del producto */
+.oferta-ribbon{
+  position:absolute;
+  top:14px;
+  left:-32px;
+  z-index:8;
+  background:var(--gold, #E4A853);
+  color:#fff;
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:2px;
+  text-transform:uppercase;
+  padding:4px 38px;
+  transform:rotate(-45deg);
+  box-shadow:0 2px 6px rgba(0,0,0,0.25);
+  pointer-events:none;
+}
+
+/* Precio dentro de la card (normal y con oferta) */
+.prod-precio-row{margin-top:4px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.prod-precio-normal{font-size:14px;color:var(--fondo);font-weight:500}
+.prod-precio-tachado{font-size:12px;color:var(--fondo);opacity:0.6;text-decoration:line-through}
+.prod-precio-oferta{font-size:15px;color:var(--gold, #E4A853);font-weight:700}
+
+/* Precio en el modal de detalle del producto */
+.modal-precio-tachado{
+  font-size:15px;
+  color:var(--text-soft);
+  text-decoration:line-through;
+  margin-right:10px;
+  font-weight:400;
+}
+.modal-precio-oferta{
+  font-size:22px;
+  font-weight:700;
+  color:var(--gold, #E4A853);
+}
+.oferta-ribbon-modal{
+  display:inline-block;
+  background:var(--gold, #E4A853);
+  color:#fff;
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:1.5px;
+  text-transform:uppercase;
+  padding:3px 10px;
+  border-radius:20px;
+  margin-right:10px;
+  vertical-align:middle;
+}
+
+/* Etiqueta de la sección "Ofertas" en el listado de productos */
+.cat-label-ofertas{
+  color:var(--gold, #E4A853) !important;
+}
+.cat-section-ofertas .cat-section-header{
+  position:relative;
+}
+
+/* Checkbox + campo de precio de oferta en el modal admin */
+.oferta-check-field{padding:2px 0}
+.oferta-check-label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  cursor:pointer;
+  font-family:'Jost', sans-serif;
+  font-size:13px;
+  color:var(--text);
+  text-transform:none;
+  letter-spacing:0;
+}
+.oferta-check-label input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
+.oferta-precio-field{
+  border:1px dashed var(--gold, #E4A853);
+  border-radius:4px;
+  padding:12px;
+  background:color-mix(in srgb, var(--gold, #E4A853) 6%, transparent);
+}
+
 /* Badge "No visible" sobre la card */
 .oculto-badge{
   position:absolute;
