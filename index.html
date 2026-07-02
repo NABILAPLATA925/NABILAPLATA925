@@ -623,15 +623,13 @@
   </div>
 </div>
 
-
 <!-- MODAL CINTA PROMOCIONAL (admin) -->
-<div class="admin-modal-overlay" id="marquee-modal-overlay" onclick="cerrarModalMarquee(event)">
+<div class="admin-modal-overlay" id="marquee-modal-overlay">
   <div class="admin-modal" style="max-width:720px;max-height:90vh;overflow-y:auto">
     <button class="admin-close" onclick="document.getElementById('marquee-modal-overlay').classList.remove('active')">✕</button>
     <h2>Cinta Promocional</h2>
     <p class="a-subtitle">Editá los mensajes que se desplazan en la barra superior</p>
 
-    <!-- Config global -->
     <div class="admin-field" style="display:flex;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--detalles);padding-bottom:1.2rem;margin-bottom:1.2rem">
       <label style="flex:1;min-width:140px">
         <span style="display:block;margin-bottom:4px">Activar cinta</span>
@@ -651,7 +649,6 @@
       </label>
     </div>
 
-    <!-- Preview en vivo -->
     <div class="admin-field">
       <label>Vista previa</label>
       <div id="mq-preview-wrap" style="overflow:hidden;border-radius:4px;border:1px solid var(--detalles)">
@@ -662,7 +659,6 @@
       </div>
     </div>
 
-    <!-- Lista de banners -->
     <div class="admin-field" style="margin-top:1.4rem">
       <label>Banners <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(arrastrá para reordenar)</span></label>
       <ul class="reorder-list" id="mq-banner-list" style="margin-top:8px"></ul>
@@ -686,16 +682,16 @@
 
     <div class="admin-field">
       <label>Texto *</label>
-      <input type="text" id="bf-texto" placeholder="Ej: 20% OFF en anillos">
+      <input type="text" id="bf-texto" placeholder="Ej: 20% OFF en anillos" oninput="previewBannerFormLive()">
     </div>
     <div class="admin-field" style="display:flex;gap:10px">
       <div style="flex:1">
         <label>Ícono / emoji</label>
-        <input type="text" id="bf-icono" placeholder="💎" maxlength="4">
+        <input type="text" id="bf-icono" placeholder="💎" maxlength="4" oninput="previewBannerFormLive()">
       </div>
       <div style="flex:1">
         <label>Separador después</label>
-        <select id="bf-separador">
+        <select id="bf-separador" onchange="previewBannerFormLive()">
           <option value="">Ninguno</option>
           <option value="•">•</option>
           <option value="★">★</option>
@@ -708,32 +704,32 @@
     <div class="admin-field" style="display:flex;gap:10px">
       <div style="flex:1">
         <label>Color de texto</label>
-        <input type="color" id="bf-color" value="#ffffff" style="width:100%;height:36px;border:1px solid var(--detalles);cursor:pointer">
+        <input type="color" id="bf-color" value="#ffffff" oninput="previewBannerFormLive()" style="width:100%;height:36px;border:1px solid var(--detalles);cursor:pointer">
       </div>
       <div style="flex:1">
         <label>Tamaño (px)</label>
-        <input type="number" id="bf-tamano" min="10" max="32" value="14">
+        <input type="number" id="bf-tamano" min="10" max="32" value="14" oninput="previewBannerFormLive()">
       </div>
     </div>
     <div class="admin-field">
       <label>Link (opcional, al hacer clic)</label>
-      <input type="text" id="bf-link" placeholder="https://... o #productos">
+      <input type="text" id="bf-link" placeholder="https://... o #productos" oninput="previewBannerFormLive()">
     </div>
     <div class="admin-field" style="display:flex;gap:14px;flex-wrap:wrap">
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;text-transform:none;letter-spacing:0">
-        <input type="checkbox" id="bf-bold" style="width:auto"> Negrita
+        <input type="checkbox" id="bf-bold" style="width:auto" onchange="previewBannerFormLive()"> Negrita
       </label>
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;text-transform:none;letter-spacing:0">
-        <input type="checkbox" id="bf-italic" style="width:auto"> Cursiva
+        <input type="checkbox" id="bf-italic" style="width:auto" onchange="previewBannerFormLive()"> Cursiva
       </label>
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;text-transform:none;letter-spacing:0">
-        <input type="checkbox" id="bf-uppercase" style="width:auto"> Mayúsculas
+        <input type="checkbox" id="bf-uppercase" style="width:auto" onchange="previewBannerFormLive()"> Mayúsculas
       </label>
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;text-transform:none;letter-spacing:0">
-        <input type="checkbox" id="bf-badge" style="width:auto"> Badge destacado
+        <input type="checkbox" id="bf-badge" style="width:auto" onchange="previewBannerFormLive()"> Badge destacado
       </label>
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;text-transform:none;letter-spacing:0">
-        <input type="checkbox" id="bf-glow" style="width:auto"> Brillo/glow
+        <input type="checkbox" id="bf-glow" style="width:auto" onchange="previewBannerFormLive()"> Brillo/glow
       </label>
     </div>
 
@@ -743,7 +739,6 @@
     </div>
   </div>
 </div>
-
 
 <!-- MODAL LOGIN ADMIN -->
 <div class="login-modal-overlay" id="login-modal">
