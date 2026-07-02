@@ -830,6 +830,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }).catch(() => {});
 
+  // Agregamos la orden para que traiga los banners apenas entras a la página
+  cargarMarqueeConfig();
+
   inicializar();
 });
 
@@ -2945,24 +2948,29 @@ function escaparHTML(str){
 // Renderiza la cinta en la web pública
 function renderMarqueePublico(){
   const wrap = document.getElementById('marquee-wrap');
-  const contentA = document.getElementById('marquee-content-a');
-  const contentB = document.getElementById('marquee-content-b');
   const track = document.getElementById('marquee-track');
-
+  
   const visibles = marqueeConfig.banners
     .filter(b => b.visible !== false)
     .sort((a,b) => (a.orden||0) - (b.orden||0));
 
   if(!marqueeConfig.activo || visibles.length === 0){
-    wrap.style.display = 'none';
+    if(wrap) wrap.style.display = 'none';
     document.body.classList.remove('marquee-active');
     return;
   }
 
-  const html = visibles.map(renderMarqueeItemHTML).join('');
-  contentA.innerHTML = html;
-  contentB.innerHTML = html;
+  // Generamos el HTML una sola vez
+  const itemsHTML = visibles.map(renderMarqueeItemHTML).join('');
+  
+  // Inyectamos 3 bloques para garantizar el loop infinito sin saltos
+  track.innerHTML = `
+    <div class="marquee-content">${itemsHTML}</div>
+    <div class="marquee-content">${itemsHTML}</div>
+    <div class="marquee-content">${itemsHTML}</div>
+  `;
 
+  // Aplicamos estilos
   wrap.style.display = 'flex';
   wrap.style.height = marqueeConfig.altura + 'px';
   wrap.style.background = marqueeConfig.fondo;
@@ -2970,6 +2978,7 @@ function renderMarqueePublico(){
   document.documentElement.style.setProperty('--marquee-height', marqueeConfig.altura + 'px');
   document.body.classList.add('marquee-active');
 }
+
 
 // ── ADMIN: abrir/cerrar modal principal ──────────────────
 let marqueeBannersTemp = []; // copia de trabajo mientras se edita en el modal
@@ -2993,26 +3002,37 @@ function cerrarModalMarquee(e){
 
 // Actualiza la vista previa en vivo dentro del modal
 function previewMarqueeConfig(){
+  const track = document.getElementById('mq-preview-track'); // Ajuste: usa el ID correcto del modal
+  const wrap  = document.getElementById('mq-preview-wrap');
+  if (!track) return;
+
+  // ── Velocidad ──────────────────────────────────────────
   const velocidad = parseInt(document.getElementById('mq-velocidad').value) || 30;
+  track.style.animationDuration = velocidad + 's';
+
+  // ── Color de fondo ─────────────────────────────────────
   const fondo = document.getElementById('mq-fondo').value;
-  const track = document.getElementById('mq-preview-track');
-  const wrap = document.getElementById('mq-preview-wrap');
-  const contentA = document.getElementById('mq-preview-content');
-  const contentB = document.getElementById('mq-preview-content-b');
+  if(wrap) wrap.style.background = fondo;
 
-  const visibles = marqueeBannersTemp
-    .filter(b => b.visible !== false)
-    .sort((a,b) => (a.orden||0) - (b.orden||0));
+  // ── Alto de la barra ───────────────────────────────────
+  const altura = parseInt(document.getElementById('mq-altura').value) || 38;
+  if(wrap) wrap.style.height = altura + 'px';
 
-  const html = visibles.length
-    ? visibles.map(renderMarqueeItemHTML).join('')
-    : '<span class="marquee-item" style="color:#999">Sin banners activos — agregá uno abajo</span>';
+  const visibles = marqueeBannersTemp.filter(x => x.visible !== false);
+  
+  if (visibles.length === 0) {
+    track.innerHTML = '<span class="marquee-item" style="color:#999">Sin banners activos</span>';
+    return;
+  }
 
-  contentA.innerHTML = html;
-  contentB.innerHTML = html;
-  track.style.setProperty('--marquee-duration', velocidad + 's');
-  wrap.style.setProperty('--mq-preview-bg', fondo);
-  wrap.style.background = fondo;
+  const itemsHTML = visibles.map(renderMarqueeItemHTML).join('');
+
+  // Aplicamos la misma lógica de triplicado para la previsualización
+  track.innerHTML = `
+    <div class="marquee-content">${itemsHTML}</div>
+    <div class="marquee-content">${itemsHTML}</div>
+    <div class="marquee-content">${itemsHTML}</div>
+  `;
 }
 
 // ── Lista de banners con drag & drop, ocultar, eliminar ──
@@ -3114,7 +3134,49 @@ function abrirFormBanner(id){
   document.getElementById('bf-glow').checked = !!b.glow;
 
   document.getElementById('banner-form-overlay').classList.add('active');
+  previewBannerFormLive();
 }
+
+
+// Vista previa en vivo mientras se edita el sub-modal de un banner
+function previewBannerFormLive(){
+  const id = document.getElementById('bf-id').value;
+
+  const bannerLive = {
+    id: id || '__preview__',
+    texto: document.getElementById('bf-texto').value || '(sin texto)',
+    icono: document.getElementById('bf-icono').value.trim(),
+    separador: document.getElementById('bf-separador').value,
+    color: document.getElementById('bf-color').value,
+    tamano: parseInt(document.getElementById('bf-tamano').value) || 14,
+    link: document.getElementById('bf-link').value.trim(),
+    bold: document.getElementById('bf-bold').checked,
+    italic: document.getElementById('bf-italic').checked,
+    uppercase: document.getElementById('bf-uppercase').checked,
+    badge: document.getElementById('bf-badge').checked,
+    glow: document.getElementById('bf-glow').checked,
+    visible: true,
+    orden: 0
+  };
+
+  let listaConLive;
+  if(id){
+    listaConLive = marqueeBannersTemp.map(b => b.id === id ? bannerLive : b);
+  } else {
+    listaConLive = [...marqueeBannersTemp, bannerLive];
+  }
+
+  const visibles = listaConLive
+    .filter(b => b.visible !== false)
+    .sort((a,b) => (a.orden||0) - (b.orden||0));
+
+  const html = visibles.map(renderMarqueeItemHTML).join('');
+  const contentA = document.getElementById('mq-preview-content');
+  const contentB = document.getElementById('mq-preview-content-b');
+  contentA.innerHTML = html;
+  contentB.innerHTML = html;
+}
+
 
 function cerrarFormBanner(e){
   if(e.target.id !== 'banner-form-overlay') return;
