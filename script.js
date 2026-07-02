@@ -32,7 +32,8 @@ const productosDefault = SITE_CONFIG.productosDefault;
 //  ESTADO GLOBAL
 // ════════════════════════════════════════════════════════
 let productos = [];
-let indiceCompleto = []; // Índice liviano {id,nombre,tipos,img,desc} de TODO el catálogo, para el buscador
+let indiceCompleto = []; // Índice liviano {id,nombre,tipos,imgThumb,desc} de TODO el catálogo, para el buscador
+let indiceVersion = 0;   // Versión del esquema de miniaturas guardado en Firestore (ver INDICE_VERSION)
 let carrito = []; // Variable global para guardar el pedido
 let posCarrusel = {};       // { catId: posicion }
 let carruselProds = {};     // { catId: [productos del carrusel] }
@@ -244,6 +245,7 @@ async function cargarDesdeFirebase(){
       // Índice liviano del catálogo completo para el buscador.
       // Viene en el mismo doc de metadata → no suma lecturas extra.
       indiceCompleto    = Array.isArray(m.indice) ? m.indice : [];
+      indiceVersion     = m.indiceVersion || 0;
       // Categorías conocidas vienen del meta para no necesitar un query extra
       if(Array.isArray(m.categorias) && m.categorias.length){
         // Cargar primer batch por cada categoría
@@ -457,25 +459,61 @@ async function guardarMetaEnFirebase(){
   } catch(e) {}
 }
 
-// Genera una miniatura MUY chica (unos 40px) en base64 a partir de la imagen
-// ya comprimida del producto. Se usa solo para el índice de búsqueda: al
-// pesar unos pocos KB en vez de las decenas/cientos de KB de la imagen
-// completa, permite meter una imagen por producto en el índice sin superar
-// el límite de 1MB del documento de Firestore, incluso con cientos de
-// productos.
-function generarThumbnail(base64){
+// Versión del esquema de miniaturas del índice. Subir este número fuerza una
+// reconstrucción automática del índice la próxima vez que un admin entre al
+// sitio (ver el chequeo de "indiceDesactualizado" más abajo, en inicializar()).
+const INDICE_VERSION = 2;
+
+// Según la cantidad de productos del catálogo, decide qué tan grande y con
+// qué presupuesto de bytes generar cada miniatura, para que el ÍNDICE
+// COMPLETO (que vive en UN SOLO documento de Firestore, límite real 1MB)
+// nunca supere un total seguro — pero sin sacrificar calidad de más cuando
+// el catálogo es chico o mediano.
+function calcularParametrosThumbnail(cantidadProductos){
+  const PRESUPUESTO_TOTAL = 800 * 1024; // ~800KB para el conjunto de miniaturas, con margen bajo el límite de 1MB
+  const n = Math.max(cantidadProductos, 1);
+  let presupuestoPorImagen = PRESUPUESTO_TOTAL / n;
+  // Clamp: ni miniaturas absurdamente pesadas con catálogos chicos,
+  // ni tan livianas que no se note la mejora con catálogos grandes.
+  presupuestoPorImagen = Math.min(Math.max(presupuestoPorImagen, 700), 9000);
+
+  let maxPx;
+  if(n <= 80)       maxPx = 130;
+  else if(n <= 150) maxPx = 105;
+  else if(n <= 300) maxPx = 85;
+  else if(n <= 600) maxPx = 65;
+  else              maxPx = 50;
+
+  return { maxPx, presupuestoPorImagen };
+}
+
+// Genera una miniatura en base64 a partir de la imagen ya comprimida del
+// producto, pensada solo para el índice de búsqueda. Prueba varias
+// calidades JPEG de mayor a menor y se queda con la más alta que entre en
+// el presupuesto de bytes calculado para el tamaño del catálogo actual.
+function generarThumbnail(base64, maxPx = 85, presupuestoBytes = 3500){
   return new Promise(resolve => {
     if(!base64){ resolve(''); return; }
     const img = new Image();
     img.onload = () => {
-      const MAX = 40;
       let w = img.width, h = img.height;
-      if(w >= h){ h = Math.round(h * MAX / w) || 1; w = MAX; }
-      else { w = Math.round(w * MAX / h) || 1; h = MAX; }
+      if(w >= h){ h = Math.round(h * maxPx / w) || 1; w = maxPx; }
+      else { w = Math.round(w * maxPx / h) || 1; h = maxPx; }
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', 0.45));
+
+      const calidades = [0.82, 0.72, 0.62, 0.52, 0.42, 0.32, 0.22];
+      let mejor = canvas.toDataURL('image/jpeg', calidades[calidades.length - 1]);
+      for(const q of calidades){
+        const data = canvas.toDataURL('image/jpeg', q);
+        const bytesAprox = Math.round(data.length * 0.75); // tamaño real aprox del base64
+        if(bytesAprox <= presupuestoBytes){
+          mejor = data;
+          break;
+        }
+      }
+      resolve(mejor);
     };
     img.onerror = () => resolve('');
     img.src = base64;
@@ -487,9 +525,11 @@ function generarThumbnail(base64){
 // (al guardar/eliminar un producto), nunca en la carga normal del sitio,
 // así que no afecta las lecturas de los visitantes.
 // Arma la entrada liviana de índice para UN producto
-async function entradaIndice(p){
-  // Miniatura chiquita (no la imagen completa, ver generarThumbnail arriba).
-  const imgThumb = await generarThumbnail(p.img);
+async function entradaIndice(p, cantidadProductos){
+  const total = cantidadProductos || indiceCompleto.length || productos.length || 1;
+  const { maxPx, presupuestoPorImagen } = calcularParametrosThumbnail(total);
+  // Miniatura ajustada al tamaño del catálogo (ver calcularParametrosThumbnail).
+  const imgThumb = await generarThumbnail(p.img, maxPx, presupuestoPorImagen);
   return {
     id: p.id,
     nombre: p.nombre || '',
@@ -501,7 +541,7 @@ async function entradaIndice(p){
 
 // Agrega o actualiza UNA entrada en el índice en memoria (sin leer Firestore)
 async function upsertEnIndice(prod){
-  const entrada = await entradaIndice(prod);
+  const entrada = await entradaIndice(prod, indiceCompleto.length || productos.length);
   const i = indiceCompleto.findIndex(p => p.id === prod.id);
   if(i >= 0) indiceCompleto[i] = entrada;
   else indiceCompleto.push(entrada);
@@ -520,8 +560,9 @@ function quitarDeIndice(prodId){
 // query pesada cada vez que se edita un producto.
 async function reconstruirIndiceBusqueda(){
   const snap = await PRODS_COL.get({ source: 'server' });
+  const total = snap.docs.length;
   indiceCompleto = await Promise.all(
-    snap.docs.map(d => entradaIndice({ ...d.data(), id: d.id }))
+    snap.docs.map(d => entradaIndice({ ...d.data(), id: d.id }, total))
   );
   return indiceCompleto;
 }
@@ -592,9 +633,10 @@ async function guardarEnFirebase(){
     // El índice de búsqueda se arma directo desde `productos` (ya está todo en memoria
     // acá), sin necesidad de leer la colección de nuevo. Usamos entradaIndice() para
     // generar la miniatura chica de cada uno (no la imagen completa).
-    const indice = await Promise.all(productos.map(p => entradaIndice(p)));
+    const indice = await Promise.all(productos.map(p => entradaIndice(p, productos.length)));
     indiceCompleto = indice;
-    await META_REF.set({ lastModified: ts, indice }, { merge: true });
+    await META_REF.set({ lastModified: ts, indice, indiceVersion: INDICE_VERSION }, { merge: true });
+    indiceVersion = INDICE_VERSION;
     try {
       // No se cachean productos — siempre se leen frescos desde Firestore
       localStorage.setItem('cache_ts', String(ts));
@@ -722,13 +764,17 @@ async function inicializar(){
 
   // Generación automática del índice de búsqueda (una sola vez).
   // Si sos admin y el índice todavía no existe en Firestore, o existe pero
-  // es de una versión vieja sin miniaturas (imgThumb), se reconstruye solo
-  // en segundo plano — no hace falta editar productos a mano.
-  const indiceDesactualizado = indiceCompleto.length && !indiceCompleto.some(p => p.imgThumb);
+  // es de una versión de esquema vieja (ej: miniaturas de baja calidad de
+  // una versión anterior), se reconstruye solo en segundo plano — no hace
+  // falta editar productos a mano.
+  const indiceDesactualizado = indiceVersion < INDICE_VERSION;
   if(ADMIN_MODE && (!indiceCompleto.length || indiceDesactualizado)){
     reconstruirIndiceBusqueda()
-      .then(indice => META_REF.set({ indice }, { merge: true }))
-      .then(() => console.log('Índice de búsqueda generado automáticamente (' + indiceCompleto.length + ' productos).'))
+      .then(indice => META_REF.set({ indice, indiceVersion: INDICE_VERSION }, { merge: true }))
+      .then(() => {
+        indiceVersion = INDICE_VERSION;
+        console.log('Índice de búsqueda generado automáticamente (' + indiceCompleto.length + ' productos).');
+      })
       .catch(err => console.warn('No se pudo generar el índice de búsqueda automáticamente:', err));
   }
 }
