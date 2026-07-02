@@ -1723,88 +1723,110 @@
 /* ════════════════════════════════════════════════════════
    CINTA PROMOCIONAL (marquee)
    ════════════════════════════════════════════════════════ */
-.marquee-wrap{
-  position:fixed;
-  top:0;
-  left:0;
-  width:100%;
-  z-index:101; /* por encima del nav (z-index:100) */
-  overflow:hidden;
-  white-space:nowrap;
-  height:38px; /* se sobreescribe inline con la altura configurada */
-  display:flex;
-  align-items:center;
+.marquee-wrap {
+  position: fixed;
+  left: 0;
+  width: 100%;
+  z-index: 98; /* Por debajo del nav (que tiene 100) */
+  overflow: hidden;
+  white-space: nowrap;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  top: 50px; /* Se ubica justo debajo del nav en PC */
 }
 
-/* Cuando la cinta está activa, empuja el nav y el body hacia abajo */
-body.marquee-active nav{
-  top:var(--marquee-height, 38px);
-}
-body.marquee-active{
-  padding-top:var(--marquee-height, 38px);
-}
-/* Si además está activa la admin-bar, se suman ambos espacios */
-body.marquee-active.admin-bar-active nav{
-  top:calc(var(--marquee-height, 38px) + 44px);
-}
-body.marquee-active.admin-bar-active{
-  padding-top:calc(var(--marquee-height, 38px) + 44px);
+@media (max-width: 768px) {
+  .marquee-wrap {
+    top: 56px; /* Altura del nav en celulares */
+  }
 }
 
-.marquee-track{
-  display:flex;
-  width:max-content;
-  animation:marquee-scroll linear infinite;
-  animation-duration:var(--marquee-duration, 30s);
+/* Si está la barra de administrador activa, bajamos la cinta y el nav */
+body.admin-mode nav {
+  top: 44px !important;
 }
-.marquee-wrap:hover .marquee-track{
-  animation-play-state:paused;
+body.admin-mode .marquee-wrap {
+  top: 94px; /* 44 (admin) + 50 (nav) */
 }
-
-.marquee-content{
-  display:flex;
-  align-items:center;
-  flex-shrink:0;
-  padding-right:40px; /* espacio antes de que se repita el bloque */
+@media (max-width: 768px) {
+  body.admin-mode .marquee-wrap {
+    top: 100px; /* 44 (admin) + 56 (nav) */
+  }
 }
 
-.marquee-item{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding:0 14px;
-  cursor:default;
-  transition:opacity .2s;
+/* Empujamos el body para que la cinta no tape la sección inicial */
+body.marquee-active {
+  padding-top: var(--marquee-height, 38px);
 }
-.marquee-item[data-clickable="1"]{
-  cursor:pointer;
-}
-.marquee-item[data-clickable="1"]:hover{
-  opacity:0.75;
-}
-.marquee-item .marquee-icon{
-  display:inline-block;
-  line-height:1;
-}
-.marquee-item.mq-bold{ font-weight:700; }
-.marquee-item.mq-italic{ font-style:italic; }
-.marquee-item.mq-uppercase{ text-transform:uppercase; letter-spacing:0.5px; }
-.marquee-item.mq-badge{
-  background:rgba(255,255,255,0.15);
-  border-radius:20px;
-  padding:3px 12px;
-}
-.marquee-item.mq-glow{
-  text-shadow:0 0 8px currentColor, 0 0 14px currentColor;
-}
-.marquee-sep{
-  padding:0 10px;
-  opacity:0.6;
+body.marquee-active.admin-mode {
+  padding-top: calc(var(--marquee-height, 38px) + 44px);
 }
 
-@keyframes marquee-scroll{
-  from{ transform:translateX(0); }
-  to{ transform:translateX(-50%); } /* -50% porque hay 2 copias idénticas */
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll linear infinite;
+  animation-duration: var(--marquee-duration, 30s);
+}
+.marquee-wrap:hover .marquee-track {
+  animation-play-state: paused; /* Frena si el cliente pasa el mouse */
+}
+
+/* REPETICIÓN INFINITA Y DISTRIBUIDA EN TODA LA PANTALLA */
+.marquee-content {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-width: 100vw; /* Garantiza que cubra todo el ancho de la pantalla */
+  justify-content: space-around; /* Distribuye los banners uniformemente */
+}
+
+.marquee-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  cursor: default;
+  transition: opacity .2s;
+}
+
+.marquee-item[data-clickable="1"] {
+  cursor: pointer;
+}
+.marquee-item[data-clickable="1"]:hover {
+  opacity: 0.75;
+}
+.marquee-item .marquee-icon {
+  display: inline-block;
+  line-height: 1;
+}
+.marquee-item.mq-bold { font-weight: 700; }
+.marquee-item.mq-italic { font-style: italic; }
+.marquee-item.mq-uppercase { text-transform: uppercase; letter-spacing: 0.5px; }
+.marquee-item.mq-badge {
+  background: rgba(255,255,255,0.15);
+  border-radius: 20px;
+  padding: 3px 12px;
+}
+.marquee-item.mq-glow {
+  text-shadow: 0 0 8px currentColor, 0 0 14px currentColor;
+}
+.marquee-sep {
+  padding: 0 10px;
+  opacity: 0.6;
+}
+
+@keyframes marquee-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-33.33%); } /* Se desplaza un bloque completo */
+}
+
+.marquee-track {
+  display: flex;
+  animation: marquee-scroll linear infinite;
+  animation-duration: var(--marquee-duration, 30s);
+  width: max-content; /* El ancho depende de todo el contenido */
 }
 
 /* Preview dentro del modal admin — mismo motor, tamaño fijo */
