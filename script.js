@@ -17,6 +17,7 @@ auth.onAuthStateChanged(user => {
     document.body.classList.add('admin');
     document.body.classList.add('admin-mode');
     document.getElementById('admin-bar').style.display = 'flex';
+    posicionarNavYMarquee();
   } else if(user && !ADMIN_REQUEST){
     // Sesión activa pero URL normal → cerrar sesión silenciosamente
     auth.signOut();
@@ -709,6 +710,7 @@ async function submitLogin(){
     document.body.classList.add('admin');
     document.body.classList.add('admin-mode');
     document.getElementById('admin-bar').style.display = 'flex';
+    posicionarNavYMarquee();
     buildAllCarousels(); // reconstruir cards con botones de admin
   } catch {
     errorEl.textContent = 'Credenciales incorrectas. Intentá de nuevo.';
@@ -731,6 +733,10 @@ async function inicializar(){
     document.body.classList.add('admin-mode');
     document.getElementById('admin-bar').style.display = 'flex';
   }
+  // Primera medición: ya sabemos si hay admin-bar visible o no.
+  // El marquee todavía puede no estar renderizado (llega de Firestore),
+  // renderMarqueePublico() vuelve a llamar a esta función cuando esté listo.
+  posicionarNavYMarquee();
 
   // Cargar metadata cacheada ANTES de buildAllCarousels — orden de categorías correcto
   try {
@@ -2957,6 +2963,7 @@ function renderMarqueePublico(){
   if(!marqueeConfig.activo || visibles.length === 0){
     if(wrap) wrap.style.display = 'none';
     document.body.classList.remove('marquee-active');
+    posicionarNavYMarquee();
     return;
   }
 
@@ -2975,8 +2982,55 @@ function renderMarqueePublico(){
   wrap.style.height = marqueeConfig.altura + 'px';
   wrap.style.background = marqueeConfig.fondo;
   track.style.setProperty('--marquee-duration', marqueeConfig.velocidad + 's');
-  document.documentElement.style.setProperty('--marquee-height', marqueeConfig.altura + 'px');
   document.body.classList.add('marquee-active');
+  posicionarNavYMarquee();
+}
+
+// ════════════════════════════════════════════════════════
+//  POSICIONAMIENTO DINÁMICO DE NAV + MARQUEE
+//  ────────────────────────────────────────────────────────
+//  Antes, el "top" del nav y de la cinta promocional estaban
+//  hardcodeados en style.css (ej: top:50px, top:94px si admin).
+//  Eso asumía que el nav SIEMPRE mide exactamente 50px/56px y
+//  el admin-bar siempre 44px. Cualquier variación real (fuentes
+//  que tardan en cargar, admin-bar con contenido que ocupa más
+//  de una línea, wrap del contenido en pantallas angostas, CSS
+//  que todavía no terminó de aplicar en el primer paint, etc.)
+//  hacía que el marquee quedara mal ubicado.
+//
+//  Esta función mide las alturas REALES con getBoundingClientRect
+//  y las vuelca a variables CSS, así el layout siempre es correcto
+//  sin importar cuánto mida cada barra en cada momento.
+// ════════════════════════════════════════════════════════
+function posicionarNavYMarquee(){
+  const adminBar = document.getElementById('admin-bar');
+  const nav      = document.querySelector('nav');
+  const marquee  = document.getElementById('marquee-wrap');
+  const root     = document.documentElement;
+
+  const adminBarH = (adminBar && getComputedStyle(adminBar).display !== 'none')
+    ? adminBar.getBoundingClientRect().height
+    : 0;
+
+  root.style.setProperty('--admin-bar-height', adminBarH + 'px');
+
+  const navH = nav ? nav.getBoundingClientRect().height : 0;
+
+  const marqueeVisible = marquee && getComputedStyle(marquee).display !== 'none';
+  const marqueeH = marqueeVisible ? marquee.getBoundingClientRect().height : 0;
+
+  root.style.setProperty('--marquee-extra-height', marqueeH + 'px');
+
+  if(marqueeVisible){
+    root.style.setProperty('--marquee-top', (adminBarH + navH) + 'px');
+  }
+
+  root.style.setProperty('--body-push-top', (adminBarH + navH + marqueeH) + 'px');
+}
+
+window.addEventListener('resize', posicionarNavYMarquee);
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(posicionarNavYMarquee);
 }
 
 

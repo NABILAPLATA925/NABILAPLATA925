@@ -23,7 +23,7 @@
 
 
   /* NAV */
-  nav{position:fixed;top:0;width:100%;z-index:100;background:rgba(253,248,245,0.92);backdrop-filter:blur(12px);border-bottom:0.5px solid var(--fondo);padding: 0 10px !important}
+  nav{position:fixed;top:var(--admin-bar-height, 0px);width:100%;z-index:100;background:rgba(253,248,245,0.92);backdrop-filter:blur(12px);border-bottom:0.5px solid var(--fondo);padding: 0 10px !important;transition:top .15s ease}
   .nav-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height: 50px !important}
   .nav-logo{font-family:var(--font-nav),serif;font-size: 19px !important; letter-spacing: 0px !important;font-weight:300;white-space: nowrap;gap: 6px !important;;color:var(--text);text-transform:uppercase;cursor:pointer}
   .nav-logo span{color:var(--principal);font-style:italic}
@@ -92,6 +92,15 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
+  }
+  /* Cuando el banner promocional está activo, el body ya se empuja hacia
+     abajo con --body-push-top (nav + banner). El hero sigue midiendo
+     100vh y centra su contenido, así que sin este ajuste el eyebrow
+     queda mucho más abajo de lo esperado (se ve "flotando" lejos del
+     banner). Le restamos la altura del banner al margen superior para
+     compensar visualmente. */
+  body.marquee-active .hero-content {
+    margin-top: calc(30px - var(--marquee-extra-height, 0px) - 90px);
   }
   /* Fondo con círculos fijo detrás de toda la página */
   .hero-bg{position:fixed;inset:0;pointer-events:none;z-index:0}
@@ -503,9 +512,10 @@
     background:var(--secciones);
     color:var(--principal)
   }
-  .admin-bar-active body,.admin-bar-active nav{padding-top:44px}
-  body.admin-mode{padding-top:44px}
-  body.admin-mode nav{top:44px}
+  /* padding-top y nav-top ahora se manejan 100% desde JS via
+     --admin-bar-height (ver posicionarNavYMarquee en script.js),
+     que mide la altura REAL del admin-bar en vez de asumir 44px fijos */
+  body.admin-mode{padding-top:var(--admin-bar-height, 0px)}
 
   /* Botón delete en card */
   .admin-delete-btn{
@@ -1733,34 +1743,18 @@
   height: 38px;
   display: flex;
   align-items: center;
-  top: 50px; /* Se ubica justo debajo del nav en PC */
+  /* top se calcula en JS (ver posicionarNavYMarquee) sumando la altura
+     real del admin-bar + la altura real del nav, así nunca depende de
+     valores fijos en px ni de cuándo terminan de cargar las fuentes. */
+  top: var(--marquee-top, 50px);
+  transition: top .15s ease;
 }
 
-@media (max-width: 768px) {
-  .marquee-wrap {
-    top: 56px; /* Altura del nav en celulares */
-  }
-}
-
-/* Si está la barra de administrador activa, bajamos la cinta y el nav */
-body.admin-mode nav {
-  top: 44px !important;
-}
-body.admin-mode .marquee-wrap {
-  top: 94px; /* 44 (admin) + 50 (nav) */
-}
-@media (max-width: 768px) {
-  body.admin-mode .marquee-wrap {
-    top: 100px; /* 44 (admin) + 56 (nav) */
-  }
-}
-
-/* Empujamos el body para que la cinta no tape la sección inicial */
+/* Empujamos el body para que la cinta no tape la sección inicial.
+   --body-push-top lo calcula posicionarNavYMarquee() en JS sumando
+   admin-bar + nav + marquee reales (0 si el marquee está inactivo). */
 body.marquee-active {
-  padding-top: var(--marquee-height, 38px);
-}
-body.marquee-active.admin-mode {
-  padding-top: calc(var(--marquee-height, 38px) + 44px);
+  padding-top: var(--body-push-top, 88px);
 }
 
 .marquee-track {
