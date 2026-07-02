@@ -61,6 +61,15 @@ const params = new URLSearchParams(location.search);
 const ADMIN_REQUEST = params.has('admin');
 let ADMIN_MODE = false;
 
+let marqueeConfig = {
+  activo: false,
+  velocidad: 30,       // segundos por vuelta
+  altura: 38,           // px
+  fondo: '#1a1a1a',
+  banners: []           // [{id, texto, icono, color, tamano, separador, link, orden, visible, bold, italic, uppercase, badge, glow}]
+};
+let marqueeDragSrcIndex = null;
+
 
 
 // ════════════════════════════════════════════════════════
@@ -2188,6 +2197,7 @@ async function eliminarCategoria(cat){
 
 // Referencia a la config editable (persiste en Firebase)
 const CONFIG_REF = db.collection('catalogo').doc('siteConfig');
+const MARQUEE_REF = db.collection('catalogo').doc('marquee');
 
 // Imagen nosotros pendiente de guardar (base64)
 let nosotrosImgPendiente = null;
@@ -2879,6 +2889,308 @@ function enviarPedidoWa() {
   const url = `https://wa.me/${SITE_CONFIG.whatsapp}?text=${encodeURIComponent(mensaje)}`;
   window.open(url, '_blank');
 }
+
+
+
+// ════════════════════════════════════════════════════════
+//  CINTA PROMOCIONAL (marquee)
+// ════════════════════════════════════════════════════════
+
+async function cargarMarqueeConfig(){
+  try {
+    const snap = await MARQUEE_REF.get({ source: 'server' });
+    if(snap.exists){
+      const data = snap.data();
+      marqueeConfig.activo    = !!data.activo;
+      marqueeConfig.velocidad = data.velocidad || 30;
+      marqueeConfig.altura    = data.altura || 38;
+      marqueeConfig.fondo     = data.fondo || '#1a1a1a';
+      marqueeConfig.banners   = Array.isArray(data.banners) ? data.banners : [];
+    }
+  } catch(err){
+    console.warn('No se pudo cargar la cinta promocional:', err);
+  }
+  renderMarqueePublico();
+}
+
+// Construye el HTML de un item individual (usado tanto en público como en preview)
+function renderMarqueeItemHTML(b){
+  const clases = [
+    'marquee-item',
+    b.bold ? 'mq-bold' : '',
+    b.italic ? 'mq-italic' : '',
+    b.uppercase ? 'mq-uppercase' : '',
+    b.badge ? 'mq-badge' : '',
+    b.glow ? 'mq-glow' : ''
+  ].filter(Boolean).join(' ');
+
+  const style = `color:${b.color || '#ffffff'};font-size:${b.tamano || 14}px`;
+  const icono = b.icono ? `<span class="marquee-icon">${b.icono}</span>` : '';
+  const texto = `<span>${escaparHTML(b.texto || '')}</span>`;
+  const sep = b.separador ? `<span class="marquee-sep" style="color:${b.color || '#ffffff'}">${b.separador}</span>` : '';
+
+  const clickAttr = b.link
+    ? `data-clickable="1" onclick="window.open('${b.link.replace(/'/g,"\\'")}','_blank')"`
+    : '';
+
+  return `<span class="${clases}" style="${style}" ${clickAttr}>${icono}${texto}</span>${sep}`;
+}
+
+function escaparHTML(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// Renderiza la cinta en la web pública
+function renderMarqueePublico(){
+  const wrap = document.getElementById('marquee-wrap');
+  const contentA = document.getElementById('marquee-content-a');
+  const contentB = document.getElementById('marquee-content-b');
+  const track = document.getElementById('marquee-track');
+
+  const visibles = marqueeConfig.banners
+    .filter(b => b.visible !== false)
+    .sort((a,b) => (a.orden||0) - (b.orden||0));
+
+  if(!marqueeConfig.activo || visibles.length === 0){
+    wrap.style.display = 'none';
+    document.body.classList.remove('marquee-active');
+    return;
+  }
+
+  const html = visibles.map(renderMarqueeItemHTML).join('');
+  contentA.innerHTML = html;
+  contentB.innerHTML = html;
+
+  wrap.style.display = 'flex';
+  wrap.style.height = marqueeConfig.altura + 'px';
+  wrap.style.background = marqueeConfig.fondo;
+  track.style.setProperty('--marquee-duration', marqueeConfig.velocidad + 's');
+  document.documentElement.style.setProperty('--marquee-height', marqueeConfig.altura + 'px');
+  document.body.classList.add('marquee-active');
+}
+
+// ── ADMIN: abrir/cerrar modal principal ──────────────────
+let marqueeBannersTemp = []; // copia de trabajo mientras se edita en el modal
+
+function abrirModalMarquee(){
+  marqueeBannersTemp = JSON.parse(JSON.stringify(marqueeConfig.banners));
+  document.getElementById('mq-activo').checked = marqueeConfig.activo;
+  document.getElementById('mq-velocidad').value = marqueeConfig.velocidad;
+  document.getElementById('mq-altura').value = marqueeConfig.altura;
+  document.getElementById('mq-fondo').value = marqueeConfig.fondo;
+
+  renderMarqueeBannerList();
+  previewMarqueeConfig();
+  document.getElementById('marquee-modal-overlay').classList.add('active');
+}
+
+function cerrarModalMarquee(e){
+  if(e.target.id !== 'marquee-modal-overlay') return;
+  document.getElementById('marquee-modal-overlay').classList.remove('active');
+}
+
+// Actualiza la vista previa en vivo dentro del modal
+function previewMarqueeConfig(){
+  const velocidad = parseInt(document.getElementById('mq-velocidad').value) || 30;
+  const fondo = document.getElementById('mq-fondo').value;
+  const track = document.getElementById('mq-preview-track');
+  const wrap = document.getElementById('mq-preview-wrap');
+  const contentA = document.getElementById('mq-preview-content');
+  const contentB = document.getElementById('mq-preview-content-b');
+
+  const visibles = marqueeBannersTemp
+    .filter(b => b.visible !== false)
+    .sort((a,b) => (a.orden||0) - (b.orden||0));
+
+  const html = visibles.length
+    ? visibles.map(renderMarqueeItemHTML).join('')
+    : '<span class="marquee-item" style="color:#999">Sin banners activos — agregá uno abajo</span>';
+
+  contentA.innerHTML = html;
+  contentB.innerHTML = html;
+  track.style.setProperty('--marquee-duration', velocidad + 's');
+  wrap.style.setProperty('--mq-preview-bg', fondo);
+  wrap.style.background = fondo;
+}
+
+// ── Lista de banners con drag & drop, ocultar, eliminar ──
+function renderMarqueeBannerList(){
+  const lista = document.getElementById('mq-banner-list');
+  lista.innerHTML = '';
+
+  marqueeBannersTemp
+    .sort((a,b) => (a.orden||0) - (b.orden||0))
+    .forEach((b, i) => {
+      const li = document.createElement('li');
+      li.className = 'reorder-item';
+      li.draggable = true;
+      li.dataset.index = i;
+      li.style.opacity = b.visible === false ? '0.5' : '1';
+
+      li.innerHTML = `
+        <span class="reorder-handle">⠿</span>
+        <span class="reorder-num">${i + 1}</span>
+        <div class="reorder-info" style="flex:1">
+          <div class="reorder-name">${b.icono || ''} ${escaparHTML(b.texto || '(sin texto)')}</div>
+          <div class="reorder-tipo">${b.visible === false ? 'Oculto' : 'Visible'}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button type="button" onclick="abrirFormBanner('${b.id}')" title="Editar" style="background:none;border:none;cursor:pointer;font-size:15px">✏️</button>
+          <button type="button" onclick="toggleVisibilidadBanner('${b.id}')" title="${b.visible === false ? 'Mostrar' : 'Ocultar'}" style="background:none;border:none;cursor:pointer;font-size:15px">${b.visible === false ? '👁️' : '🙈'}</button>
+          <button type="button" onclick="eliminarBanner('${b.id}')" title="Eliminar" style="background:none;border:none;cursor:pointer;font-size:15px">🗑️</button>
+        </div>`;
+
+      li.addEventListener('dragstart', e => {
+        marqueeDragSrcIndex = parseInt(li.dataset.index);
+        li.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      li.addEventListener('dragend', () => {
+        li.classList.remove('dragging');
+        lista.querySelectorAll('.reorder-item').forEach(el => el.classList.remove('drag-over'));
+      });
+      li.addEventListener('dragover', e => {
+        e.preventDefault();
+        lista.querySelectorAll('.reorder-item').forEach(el => el.classList.remove('drag-over'));
+        li.classList.add('drag-over');
+      });
+      li.addEventListener('drop', e => {
+        e.preventDefault();
+        const destIndex = parseInt(li.dataset.index);
+        if(marqueeDragSrcIndex === null || marqueeDragSrcIndex === destIndex) return;
+        const ordenados = [...marqueeBannersTemp].sort((a,b)=>(a.orden||0)-(b.orden||0));
+        const [moved] = ordenados.splice(marqueeDragSrcIndex, 1);
+        ordenados.splice(destIndex, 0, moved);
+        ordenados.forEach((b, idx) => b.orden = idx);
+        marqueeBannersTemp = ordenados;
+        marqueeDragSrcIndex = null;
+        renderMarqueeBannerList();
+        previewMarqueeConfig();
+      });
+
+      lista.appendChild(li);
+    });
+}
+
+function toggleVisibilidadBanner(id){
+  const b = marqueeBannersTemp.find(x => x.id === id);
+  if(!b) return;
+  b.visible = b.visible === false ? true : false;
+  renderMarqueeBannerList();
+  previewMarqueeConfig();
+}
+
+function eliminarBanner(id){
+  if(!confirm('¿Eliminar este banner permanentemente? Esta acción no se puede deshacer.')) return;
+  marqueeBannersTemp = marqueeBannersTemp.filter(x => x.id !== id);
+  marqueeBannersTemp.forEach((b, idx) => b.orden = idx);
+  renderMarqueeBannerList();
+  previewMarqueeConfig();
+}
+
+// ── Sub-modal: agregar / editar un banner ────────────────
+function abrirFormBanner(id){
+  const esNuevo = !id;
+  const b = esNuevo
+    ? { id:'', texto:'', icono:'', color:'#ffffff', tamano:14, separador:'•', link:'', visible:true, bold:false, italic:false, uppercase:false, badge:false, glow:false }
+    : marqueeBannersTemp.find(x => x.id === id);
+
+  if(!b) return;
+
+  document.getElementById('banner-form-titulo').textContent = esNuevo ? 'Nuevo banner' : 'Editar banner';
+  document.getElementById('bf-id').value = b.id || '';
+  document.getElementById('bf-texto').value = b.texto || '';
+  document.getElementById('bf-icono').value = b.icono || '';
+  document.getElementById('bf-separador').value = b.separador || '';
+  document.getElementById('bf-color').value = b.color || '#ffffff';
+  document.getElementById('bf-tamano').value = b.tamano || 14;
+  document.getElementById('bf-link').value = b.link || '';
+  document.getElementById('bf-bold').checked = !!b.bold;
+  document.getElementById('bf-italic').checked = !!b.italic;
+  document.getElementById('bf-uppercase').checked = !!b.uppercase;
+  document.getElementById('bf-badge').checked = !!b.badge;
+  document.getElementById('bf-glow').checked = !!b.glow;
+
+  document.getElementById('banner-form-overlay').classList.add('active');
+}
+
+function cerrarFormBanner(e){
+  if(e.target.id !== 'banner-form-overlay') return;
+  document.getElementById('banner-form-overlay').classList.remove('active');
+}
+
+function guardarBannerForm(){
+  const texto = document.getElementById('bf-texto').value.trim();
+  if(!texto){
+    mostrarToastError('El texto del banner es obligatorio');
+    return;
+  }
+
+  let id = document.getElementById('bf-id').value;
+  const datos = {
+    id: id || ('b_' + Date.now()),
+    texto,
+    icono: document.getElementById('bf-icono').value.trim(),
+    separador: document.getElementById('bf-separador').value,
+    color: document.getElementById('bf-color').value,
+    tamano: parseInt(document.getElementById('bf-tamano').value) || 14,
+    link: document.getElementById('bf-link').value.trim(),
+    bold: document.getElementById('bf-bold').checked,
+    italic: document.getElementById('bf-italic').checked,
+    uppercase: document.getElementById('bf-uppercase').checked,
+    badge: document.getElementById('bf-badge').checked,
+    glow: document.getElementById('bf-glow').checked,
+  };
+
+  if(id){
+    const idx = marqueeBannersTemp.findIndex(x => x.id === id);
+    if(idx > -1){
+      datos.visible = marqueeBannersTemp[idx].visible;
+      datos.orden = marqueeBannersTemp[idx].orden;
+      marqueeBannersTemp[idx] = datos;
+    }
+  } else {
+    datos.visible = true;
+    datos.orden = marqueeBannersTemp.length;
+    marqueeBannersTemp.push(datos);
+  }
+
+  document.getElementById('banner-form-overlay').classList.remove('active');
+  renderMarqueeBannerList();
+  previewMarqueeConfig();
+}
+
+// ── Guardar todo en Firebase ──────────────────────────────
+async function guardarMarqueeConfig(){
+  marqueeConfig.activo    = document.getElementById('mq-activo').checked;
+  marqueeConfig.velocidad = parseInt(document.getElementById('mq-velocidad').value) || 30;
+  marqueeConfig.altura    = parseInt(document.getElementById('mq-altura').value) || 38;
+  marqueeConfig.fondo     = document.getElementById('mq-fondo').value;
+  marqueeConfig.banners   = marqueeBannersTemp;
+
+  mostrarToast('Guardando cinta promocional…');
+  try {
+    await MARQUEE_REF.set({
+      activo: marqueeConfig.activo,
+      velocidad: marqueeConfig.velocidad,
+      altura: marqueeConfig.altura,
+      fondo: marqueeConfig.fondo,
+      banners: marqueeConfig.banners
+    });
+    renderMarqueePublico();
+    document.getElementById('marquee-modal-overlay').classList.remove('active');
+    mostrarToast('Cinta promocional guardada ✓');
+  } catch(err){
+    console.error('Error guardando cinta promocional:', err);
+    mostrarToastError('⚠ Error al guardar. Revisá la conexión.', 7000);
+  }
+}
+
+
+
+
 // ════════════════════════════════════════════════════════════════
 //  MENÚ HAMBURGUESA (mobile) + DROPDOWN DESKTOP (categorías)
 // ════════════════════════════════════════════════════════════════

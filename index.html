@@ -117,6 +117,14 @@
   </div>
 </nav>
 
+<!-- CINTA PROMOCIONAL (marquee) -->
+<div class="marquee-wrap" id="marquee-wrap" style="display:none">
+  <div class="marquee-track" id="marquee-track">
+    <div class="marquee-content" id="marquee-content-a"></div>
+    <div class="marquee-content" id="marquee-content-b" aria-hidden="true"></div>
+  </div>
+</div>
+
 <!-- MOBILE MENU DRAWER -->
 <div class="mobile-menu-overlay" id="mobile-menu-overlay" onclick="closeMobileMenu()"></div>
 <div class="mobile-menu" id="mobile-menu">
@@ -298,6 +306,7 @@
     <button class="btn-admin-add" onclick="abrirModalAgregar()">+ Agregar producto</button>
     <button class="btn-admin-reset" onclick="abrirModalReorden()">⇅ Reordenar</button>
     <button class="btn-admin-reset" onclick="abrirModalCategorias()">👁 Categorías</button>
+    <button class="btn-admin-reset" onclick="abrirModalMarquee()">📢 Cinta Promocional</button>
     <button class="btn-admin-reset" onclick="abrirModalEditarPagina()">✏ Editar página</button>
     <button onclick="logoutAdmin()">Salir</button>
   </div>
@@ -613,6 +622,128 @@
     </div>
   </div>
 </div>
+
+
+<!-- MODAL CINTA PROMOCIONAL (admin) -->
+<div class="admin-modal-overlay" id="marquee-modal-overlay" onclick="cerrarModalMarquee(event)">
+  <div class="admin-modal" style="max-width:720px;max-height:90vh;overflow-y:auto">
+    <button class="admin-close" onclick="document.getElementById('marquee-modal-overlay').classList.remove('active')">✕</button>
+    <h2>Cinta Promocional</h2>
+    <p class="a-subtitle">Editá los mensajes que se desplazan en la barra superior</p>
+
+    <!-- Config global -->
+    <div class="admin-field" style="display:flex;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--detalles);padding-bottom:1.2rem;margin-bottom:1.2rem">
+      <label style="flex:1;min-width:140px">
+        <span style="display:block;margin-bottom:4px">Activar cinta</span>
+        <input type="checkbox" id="mq-activo" onchange="previewMarqueeConfig()">
+      </label>
+      <label style="flex:1;min-width:140px">
+        <span style="display:block;margin-bottom:4px">Velocidad (seg. por vuelta)</span>
+        <input type="number" id="mq-velocidad" min="5" max="120" step="1" value="30" oninput="previewMarqueeConfig()">
+      </label>
+      <label style="flex:1;min-width:140px">
+        <span style="display:block;margin-bottom:4px">Alto de la barra (px)</span>
+        <input type="number" id="mq-altura" min="24" max="80" step="1" value="38" oninput="previewMarqueeConfig()">
+      </label>
+      <label style="flex:1;min-width:140px">
+        <span style="display:block;margin-bottom:4px">Color de fondo</span>
+        <input type="color" id="mq-fondo" value="#1a1a1a" oninput="previewMarqueeConfig()" style="width:100%;height:36px;border:1px solid var(--detalles);cursor:pointer">
+      </label>
+    </div>
+
+    <!-- Preview en vivo -->
+    <div class="admin-field">
+      <label>Vista previa</label>
+      <div id="mq-preview-wrap" style="overflow:hidden;border-radius:4px;border:1px solid var(--detalles)">
+        <div class="marquee-track" id="mq-preview-track">
+          <div class="marquee-content" id="mq-preview-content"></div>
+          <div class="marquee-content" id="mq-preview-content-b" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lista de banners -->
+    <div class="admin-field" style="margin-top:1.4rem">
+      <label>Banners <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(arrastrá para reordenar)</span></label>
+      <ul class="reorder-list" id="mq-banner-list" style="margin-top:8px"></ul>
+      <button type="button" onclick="abrirFormBanner(null)" style="margin-top:10px;background:none;border:1px dashed var(--detalles);border-radius:2px;padding:8px 14px;cursor:pointer;font-family:'Jost';font-size:13px;color:var(--text-soft);width:100%">＋ Agregar banner</button>
+    </div>
+
+    <div class="admin-modal-btns" style="margin-top:1.6rem">
+      <button class="btn-cancelar" onclick="document.getElementById('marquee-modal-overlay').classList.remove('active')">Cancelar</button>
+      <button class="btn-guardar" onclick="guardarMarqueeConfig()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUB-MODAL: agregar/editar un banner individual -->
+<div class="admin-modal-overlay" id="banner-form-overlay" onclick="cerrarFormBanner(event)" style="z-index:10000">
+  <div class="admin-modal" style="max-width:480px">
+    <button class="admin-close" onclick="document.getElementById('banner-form-overlay').classList.remove('active')">✕</button>
+    <h2 id="banner-form-titulo">Nuevo banner</h2>
+
+    <input type="hidden" id="bf-id">
+
+    <div class="admin-field">
+      <label>Texto *</label>
+      <input type="text" id="bf-texto" placeholder="Ej: 20% OFF en anillos">
+    </div>
+    <div class="admin-field" style="display:flex;gap:10px">
+      <div style="flex:1">
+        <label>Ícono / emoji</label>
+        <input type="text" id="bf-icono" placeholder="💎" maxlength="4">
+      </div>
+      <div style="flex:1">
+        <label>Separador después</label>
+        <select id="bf-separador">
+          <option value="">Ninguno</option>
+          <option value="•">•</option>
+          <option value="★">★</option>
+          <option value="|">|</option>
+          <option value="♥">♥</option>
+          <option value="✦">✦</option>
+        </select>
+      </div>
+    </div>
+    <div class="admin-field" style="display:flex;gap:10px">
+      <div style="flex:1">
+        <label>Color de texto</label>
+        <input type="color" id="bf-color" value="#ffffff" style="width:100%;height:36px;border:1px solid var(--detalles);cursor:pointer">
+      </div>
+      <div style="flex:1">
+        <label>Tamaño (px)</label>
+        <input type="number" id="bf-tamano" min="10" max="32" value="14">
+      </div>
+    </div>
+    <div class="admin-field">
+      <label>Link (opcional, al hacer clic)</label>
+      <input type="text" id="bf-link" placeholder="https://... o #productos">
+    </div>
+    <div class="admin-field" style="display:flex;gap:14px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;text-transform:none;letter-spacing:0">
+        <input type="checkbox" id="bf-bold" style="width:auto"> Negrita
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;text-transform:none;letter-spacing:0">
+        <input type="checkbox" id="bf-italic" style="width:auto"> Cursiva
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;text-transform:none;letter-spacing:0">
+        <input type="checkbox" id="bf-uppercase" style="width:auto"> Mayúsculas
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;text-transform:none;letter-spacing:0">
+        <input type="checkbox" id="bf-badge" style="width:auto"> Badge destacado
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;text-transform:none;letter-spacing:0">
+        <input type="checkbox" id="bf-glow" style="width:auto"> Brillo/glow
+      </label>
+    </div>
+
+    <div class="admin-modal-btns">
+      <button class="btn-cancelar" onclick="document.getElementById('banner-form-overlay').classList.remove('active')">Cancelar</button>
+      <button class="btn-guardar" onclick="guardarBannerForm()">Guardar banner</button>
+    </div>
+  </div>
+</div>
+
 
 <!-- MODAL LOGIN ADMIN -->
 <div class="login-modal-overlay" id="login-modal">

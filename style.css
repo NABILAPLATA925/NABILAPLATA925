@@ -1717,3 +1717,109 @@
     left:0.9rem;
   }
 }
+
+
+
+/* ════════════════════════════════════════════════════════
+   CINTA PROMOCIONAL (marquee)
+   ════════════════════════════════════════════════════════ */
+.marquee-wrap{
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  z-index:101; /* por encima del nav (z-index:100) */
+  overflow:hidden;
+  white-space:nowrap;
+  height:38px; /* se sobreescribe inline con la altura configurada */
+  display:flex;
+  align-items:center;
+}
+
+/* Cuando la cinta está activa, empuja el nav y el body hacia abajo */
+body.marquee-active nav{
+  top:var(--marquee-height, 38px);
+}
+body.marquee-active{
+  padding-top:var(--marquee-height, 38px);
+}
+/* Si además está activa la admin-bar, se suman ambos espacios */
+body.marquee-active.admin-bar-active nav{
+  top:calc(var(--marquee-height, 38px) + 44px);
+}
+body.marquee-active.admin-bar-active{
+  padding-top:calc(var(--marquee-height, 38px) + 44px);
+}
+
+.marquee-track{
+  display:flex;
+  width:max-content;
+  animation:marquee-scroll linear infinite;
+  animation-duration:var(--marquee-duration, 30s);
+}
+.marquee-wrap:hover .marquee-track{
+  animation-play-state:paused;
+}
+
+.marquee-content{
+  display:flex;
+  align-items:center;
+  flex-shrink:0;
+  padding-right:40px; /* espacio antes de que se repita el bloque */
+}
+
+.marquee-item{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:0 14px;
+  cursor:default;
+  transition:opacity .2s;
+}
+.marquee-item[data-clickable="1"]{
+  cursor:pointer;
+}
+.marquee-item[data-clickable="1"]:hover{
+  opacity:0.75;
+}
+.marquee-item .marquee-icon{
+  display:inline-block;
+  line-height:1;
+}
+.marquee-item.mq-bold{ font-weight:700; }
+.marquee-item.mq-italic{ font-style:italic; }
+.marquee-item.mq-uppercase{ text-transform:uppercase; letter-spacing:0.5px; }
+.marquee-item.mq-badge{
+  background:rgba(255,255,255,0.15);
+  border-radius:20px;
+  padding:3px 12px;
+}
+.marquee-item.mq-glow{
+  text-shadow:0 0 8px currentColor, 0 0 14px currentColor;
+}
+.marquee-sep{
+  padding:0 10px;
+  opacity:0.6;
+}
+
+@keyframes marquee-scroll{
+  from{ transform:translateX(0); }
+  to{ transform:translateX(-50%); } /* -50% porque hay 2 copias idénticas */
+}
+
+/* Preview dentro del modal admin — mismo motor, tamaño fijo */
+#mq-preview-wrap{
+  height:44px;
+  display:flex;
+  align-items:center;
+  background:var(--mq-preview-bg, #1a1a1a);
+}
+#mq-preview-track{
+  animation-duration:var(--marquee-duration, 20s);
+}
+
+/* Responsive: en mobile, texto e íconos un poco más chicos por defecto */
+@media (max-width:600px){
+  .marquee-item{ padding:0 10px; }
+  .marquee-sep{ padding:0 7px; }
+}
