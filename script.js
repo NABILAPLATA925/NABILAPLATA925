@@ -38,8 +38,6 @@ let carrito = []; // Variable global para guardar el pedido
 let posCarrusel = {};       // { catId: posicion }
 let carruselProds = {};     // { catId: [productos del carrusel] }
 
-
-
 // ── OFERTAS ──────────────────────────────────────────────────────
 // "Ofertas" se maneja como una categoría más (reutiliza todo el motor
 // de carruseles/orden/visibilidad ya existente: si no tiene productos,
@@ -63,11 +61,7 @@ const params = new URLSearchParams(location.search);
 const ADMIN_REQUEST = params.has('admin');
 let ADMIN_MODE = false;
 
-function obtenerPrecioFinal(producto){
-  return (producto.enOferta && producto.precioOferta)
-    ? producto.precioOferta
-    : producto.precio;
-}
+
 
 // ════════════════════════════════════════════════════════
 //  APLICAR CONFIG — llena todos los textos y colores
@@ -1352,15 +1346,11 @@ function openModal(p){
     window._modalCarouselTotal = imgs.length;
   }
   
-  // WhatsApp link con nombre del producto y precio correcto
-const template = SITE_CONFIG.contacto.waTextoProducto || SITE_CONFIG.contacto.waTexto;
-const precioFinal = obtenerPrecioFinal(p);
-const msgProducto = template
-  .replace('{nombre}', p.nombre)
-  .replace('{precio}', precioFinal);
+  // WhatsApp link con nombre del producto
+  const template = SITE_CONFIG.contacto.waTextoProducto || SITE_CONFIG.contacto.waTexto;
+  const msgProducto = template.replace('{nombre}', p.nombre);
+  document.getElementById('modal-wa').href = `https://wa.me/${SITE_CONFIG.whatsapp}?text=${encodeURIComponent(msgProducto)}`;
 
-document.getElementById('modal-wa').href =
-  `https://wa.me/${SITE_CONFIG.whatsapp}?text=${encodeURIComponent(msgProducto)}`;
   pintarAccionesAdminModal(p);
 
   document.getElementById('modal').classList.add('active');
@@ -1862,6 +1852,9 @@ async function guardarProducto(){
     ? '$' + Number(precioOfertaInput.replace(/\D/g, '')).toLocaleString('es-AR')
     : '';
 
+  const precioOriginal = precio;
+  const precioFinal = esOferta ? precioOferta : precio;
+
   // "Ofertas" se agrega/quita del listado de categorías del producto
   // al final, para no pisar la categoría principal que se muestra en la card
   const tiposFinal = tiposSeleccionados.filter(t => t !== OFERTA_CAT);
@@ -1875,23 +1868,27 @@ async function guardarProducto(){
     productoEditando.tipos  = tiposFinal;
     productoEditando.tipo   = tiposFinal[0]; // compatibilidad legacy
     productoEditando.desc   = desc;
-    productoEditando.precio = precio;
+    productoEditando.precio = precioFinal;
+    productoEditando.precioOriginal = esOferta ? precioOriginal : '';
     productoEditando.img    = imgPortada;
     productoEditando.imgs   = reordenadas;
     productoEditando.enOferta = esOferta;
-    if(esOferta) productoEditando.precioOferta = precioOferta;
-    else delete productoEditando.precioOferta;
+    if(esOferta) productoEditando.precioOferta = precioOriginal;
+    else {
+      delete productoEditando.precioOferta;
+      delete productoEditando.precioOriginal;
+    }
   } else {
     productos.push({
       nombre,
-      precio,
+      precio: precioFinal,
       tipo: tiposFinal[0],
       tipos: tiposFinal,
       desc,
       img: imgPortada,
       imgs: reordenadas,
-      enOferta: esOferta,
-      ...(esOferta ? { precioOferta } : {})
+      enOferta,
+      ...(esOferta ? { precioOferta: precioOriginal } : {})
     });
   }
 
@@ -2751,9 +2748,7 @@ function toggleCarrito() {
 }
 
 function agregarAlCarrito(producto) {
-  const precioFinal = obtenerPrecioFinal(producto);
-
-  if (!precioFinal || precioFinal.trim() === '') {
+  if (!producto.precio || producto.precio.trim() === '') {
     mostrarToastError('Este producto no tiene precio asignado.');
     return;
   }
@@ -2765,12 +2760,8 @@ function agregarAlCarrito(producto) {
     // Si existe, solo sumamos 1 a la cantidad
     existente.cantidad += 1;
   } else {
-    // Si no existe, lo agregamos con el precio correcto
-    carrito.push({
-      ...producto,
-      precio: precioFinal,
-      cantidad: 1
-    });
+    // Si no existe, lo agregamos con cantidad inicial de 1
+    carrito.push({ ...producto, cantidad: 1 });
   }
 
   actualizarCarritoUI();
@@ -2825,16 +2816,30 @@ function actualizarCarritoUI() {
   let total = 0;
 
   carrito.forEach((p, idx) => {
-    const precioNum = Number((p.precio || '0').replace(/\D/g, ''));
+    // Verificamos si está en oferta y definimos el precio que debe cobrarse
+    const precioVigente = (p.enOferta && p.precioOferta) ? p.precioOferta : p.precio;
+    
+    const precioNum = Number((precioVigente || '0').replace(/\D/g, ''));
     const subtotal = precioNum * p.cantidad;
     total += subtotal;
+    
+    // Armamos el diseño del precio según si está en oferta o no
+    let precioMostrarHTML = '';
+    if (p.enOferta && p.precioOferta) {
+      precioMostrarHTML = `
+        <span style="text-decoration: line-through; color: var(--text-soft); opacity: 0.65; margin-right: 6px; font-size: 12px;">${p.precio}</span>
+        <span style="color: var(--principal); font-weight: bold;">${p.precioOferta}</span>
+      `;
+    } else {
+      precioMostrarHTML = `<span>${p.precio}</span>`;
+    }
     
     html += `
       <div class="cart-item">
         <img src="${p.img}" class="cart-item-img">
         <div class="cart-item-info">
           <div class="cart-item-title">${p.nombre}</div>
-          <div class="cart-item-price">${p.precio} c/u</div>
+          <div class="cart-item-price">${precioMostrarHTML} c/u</div>
           <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
             <button onclick="cambiarCantidad(${idx}, -1)" style="width:24px; height:24px; border:1px solid var(--detalles); background:transparent; cursor:pointer; border-radius:4px; display:flex; align-items:center; justify-content:center; color:var(--text); font-weight:bold; transition: background 0.2s;">-</button>
             <span style="font-size:13px; font-weight:600; width:18px; text-align:center; color:var(--text);">${p.cantidad}</span>
@@ -2860,9 +2865,12 @@ function enviarPedidoWa() {
   let total = 0;
 
   carrito.forEach((p) => {
-    const precioNum = Number((p.precio || '0').replace(/\D/g, ''));
+    // Hacemos la misma validación para el mensaje final
+    const precioVigente = (p.enOferta && p.precioOferta) ? p.precioOferta : p.precio;
+    
+    const precioNum = Number((precioVigente || '0').replace(/\D/g, ''));
     total += precioNum * p.cantidad;
-    lineas.push(`• ${p.cantidad}x *${p.nombre}* - ${p.precio} c/u `);
+    lineas.push(`• ${p.cantidad}x *${p.nombre}* - ${precioVigente} c/u `);
   });
 
   lineas.push(`*TOTAL A ABONAR: $${total.toLocaleString('es-AR')}*`);
