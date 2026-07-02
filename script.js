@@ -38,6 +38,8 @@ let carrito = []; // Variable global para guardar el pedido
 let posCarrusel = {};       // { catId: posicion }
 let carruselProds = {};     // { catId: [productos del carrusel] }
 
+
+
 // ── OFERTAS ──────────────────────────────────────────────────────
 // "Ofertas" se maneja como una categoría más (reutiliza todo el motor
 // de carruseles/orden/visibilidad ya existente: si no tiene productos,
@@ -61,7 +63,11 @@ const params = new URLSearchParams(location.search);
 const ADMIN_REQUEST = params.has('admin');
 let ADMIN_MODE = false;
 
-
+function obtenerPrecioFinal(producto){
+  return (producto.enOferta && producto.precioOferta)
+    ? producto.precioOferta
+    : producto.precio;
+}
 
 // ════════════════════════════════════════════════════════
 //  APLICAR CONFIG — llena todos los textos y colores
@@ -1346,11 +1352,15 @@ function openModal(p){
     window._modalCarouselTotal = imgs.length;
   }
   
-  // WhatsApp link con nombre del producto
-  const template = SITE_CONFIG.contacto.waTextoProducto || SITE_CONFIG.contacto.waTexto;
-  const msgProducto = template.replace('{nombre}', p.nombre);
-  document.getElementById('modal-wa').href = `https://wa.me/${SITE_CONFIG.whatsapp}?text=${encodeURIComponent(msgProducto)}`;
+  // WhatsApp link con nombre del producto y precio correcto
+const template = SITE_CONFIG.contacto.waTextoProducto || SITE_CONFIG.contacto.waTexto;
+const precioFinal = obtenerPrecioFinal(p);
+const msgProducto = template
+  .replace('{nombre}', p.nombre)
+  .replace('{precio}', precioFinal);
 
+document.getElementById('modal-wa').href =
+  `https://wa.me/${SITE_CONFIG.whatsapp}?text=${encodeURIComponent(msgProducto)}`;
   pintarAccionesAdminModal(p);
 
   document.getElementById('modal').classList.add('active');
@@ -2741,7 +2751,9 @@ function toggleCarrito() {
 }
 
 function agregarAlCarrito(producto) {
-  if (!producto.precio || producto.precio.trim() === '') {
+  const precioFinal = obtenerPrecioFinal(producto);
+
+  if (!precioFinal || precioFinal.trim() === '') {
     mostrarToastError('Este producto no tiene precio asignado.');
     return;
   }
@@ -2753,8 +2765,12 @@ function agregarAlCarrito(producto) {
     // Si existe, solo sumamos 1 a la cantidad
     existente.cantidad += 1;
   } else {
-    // Si no existe, lo agregamos con cantidad inicial de 1
-    carrito.push({ ...producto, cantidad: 1 });
+    // Si no existe, lo agregamos con el precio correcto
+    carrito.push({
+      ...producto,
+      precio: precioFinal,
+      cantidad: 1
+    });
   }
 
   actualizarCarritoUI();
