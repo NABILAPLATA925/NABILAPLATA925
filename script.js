@@ -3378,7 +3378,7 @@ function irACategoria(catName) {
   const section = document.getElementById(sectionId);
   if (section) {
     const offset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--body-push-top')) || 0;
-    const top = section.getBoundingClientRect().top + window.scrollY - offset - 12;
+    const top = section.getBoundingClientRect().top + window.scrollY - offset - 30;
     window.scrollTo({ top, behavior: 'smooth' });
   } else {
     scrollToSection('productos');
@@ -3390,7 +3390,7 @@ function irATodosLosProductos() {
   const section = document.getElementById('section-todos');
   if (section) {
     const offset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--body-push-top')) || 0;
-    const top = section.getBoundingClientRect().top + window.scrollY - offset - 12;
+    const top = section.getBoundingClientRect().top + window.scrollY - offset - 30;
     window.scrollTo({ top, behavior: 'smooth' });
   } else {
     scrollToSection('productos');

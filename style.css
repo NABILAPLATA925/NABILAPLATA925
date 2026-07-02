@@ -688,6 +688,8 @@
 }
 .cat-section-ofertas .cat-section-header{
   position:relative;
+  margin-top:3.5rem; /* compensa el .cat-divider que las demás categorías sí tienen arriba,
+                         para que el scroll con offset del nav no la tape */
 }
 
 /* Checkbox + campo de precio de oferta en el modal admin */
