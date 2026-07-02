@@ -1594,7 +1594,13 @@ document.querySelector('.modal-close').addEventListener('click', () => {
 });
 
 function scrollToSection(id){
-  document.getElementById(id).scrollIntoView({behavior:'smooth'});
+  const el = document.getElementById(id);
+  if(!el) return;
+  const offset = document.documentElement.style.getPropertyValue('--body-push-top') 
+    ? parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--body-push-top')) 
+    : 0;
+  const top = el.getBoundingClientRect().top + window.scrollY - offset - 15;
+  window.scrollTo({ top, behavior: 'smooth' });
 }
 
 // ════════════════════════════════════════════════════════
@@ -3371,8 +3377,8 @@ function irACategoria(catName) {
   const sectionId = 'section-' + getCatId(catName);
   const section = document.getElementById(sectionId);
   if (section) {
-    const navH = document.querySelector('nav')?.offsetHeight || 60;
-    const top = section.getBoundingClientRect().top + window.scrollY - navH - 12;
+    const offset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--body-push-top')) || 0;
+    const top = section.getBoundingClientRect().top + window.scrollY - offset - 12;
     window.scrollTo({ top, behavior: 'smooth' });
   } else {
     scrollToSection('productos');
@@ -3383,8 +3389,8 @@ function irACategoria(catName) {
 function irATodosLosProductos() {
   const section = document.getElementById('section-todos');
   if (section) {
-    const navH = document.querySelector('nav')?.offsetHeight || 60;
-    const top = section.getBoundingClientRect().top + window.scrollY - navH - 12;
+    const offset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--body-push-top')) || 0;
+    const top = section.getBoundingClientRect().top + window.scrollY - offset - 12;
     window.scrollTo({ top, behavior: 'smooth' });
   } else {
     scrollToSection('productos');
