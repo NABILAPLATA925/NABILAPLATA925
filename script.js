@@ -828,6 +828,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Hero anima INMEDIATAMENTE — no espera Firebase para nada
   animarHero();
 
+  // Repite la animación del hero cada vez que volvés a esa sección
+  initHeroReplay();
+
+  // Animaciones de scroll para el resto de las secciones (Nosotros,
+  // Productos, Contacto, Footer). No depende de Firebase.
+  initScrollReveal();
+
   // Firebase carga en segundo plano, nunca bloquea la UI ni la animación
   cargarConfigEditable().then(data => {
     if (data) {
@@ -846,6 +853,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 //  ANIMACIÓN HERO — entrada única y armoniosa
 //  Espera a que la imagen del logo esté lista antes de
 //  arrancar, para que todo aparezca junto en cascada.
+//  Se puede volver a disparar cada vez que la sección
+//  vuelve a estar en pantalla (ver initHeroReplay más abajo).
 // ════════════════════════════════════════════════════════
 function animarHero(){
   const DELAY_BASE  = 110;
@@ -892,11 +901,202 @@ function animarHero(){
   }
 }
 
+// Quita la clase hero-visible de todos los elementos del hero,
+// dejándolo listo para animarse de nuevo desde cero.
+function resetearHero(){
+  const elementos = [
+    document.getElementById('hero-eyebrow-1'),
+    document.getElementById('hero-eyebrow-2'),
+    document.getElementById('hero-title'),
+    document.getElementById('hero-title-img-wrap'),
+    document.getElementById('hero-subtitle'),
+    document.querySelector('.hero-cta'),
+    document.querySelector('.hero-scroll'),
+  ].filter(Boolean);
+  elementos.forEach(el => el.classList.remove('hero-visible'));
+}
+
+// ════════════════════════════════════════════════════════
+//  HERO REPLAY — repite la animación de entrada del hero
+//  cada vez que la sección vuelve a estar en pantalla
+//  (igual que el resto de las secciones), no solo la
+//  primera vez que carga la página.
+// ════════════════════════════════════════════════════════
+function initHeroReplay(){
+  const heroSection = document.getElementById('hero');
+  if(!heroSection || !('IntersectionObserver' in window)) return;
+
+  const heroObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if(entry.isIntersecting){
+        animarHero();
+      } else {
+        resetearHero();
+      }
+    });
+  }, {
+    threshold: 0.2,
+    rootMargin: '0px 0px -60px 0px'
+  });
+
+  heroObserver.observe(heroSection);
+}
+
 let resizeTimer;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => buildAllCarousels(), 150);
 });
+
+// ════════════════════════════════════════════════════════
+//  SCROLL REVEAL — animación de entrada para cada sección
+//  Le agrega las clases .reveal / .reveal-visible a los
+//  elementos clave de Nosotros, Productos, Contacto y
+//  Footer usando IntersectionObserver. No requiere tocar
+//  el HTML: se auto-configura al cargar la página.
+// ════════════════════════════════════════════════════════
+function initScrollReveal(){
+  // Si el navegador no soporta IntersectionObserver, mostramos todo sin animar
+  if(!('IntersectionObserver' in window)){
+    document.querySelectorAll('.reveal, .reveal-stagger, .divider').forEach(el => el.classList.add('reveal-visible'));
+    return;
+  }
+
+  // Mapa de selector → clase de animación a aplicar
+  const targets = [
+    // NOSOTROS
+    { sel: '#nosotros .about-image',            cls: 'reveal reveal-left'    },
+    { sel: '#nosotros .about-text',              cls: 'reveal reveal-right'   },
+    { sel: '#nosotros .divider',                 cls: 'reveal-grow'           },
+    { sel: '#nosotros-stats',                    cls: 'reveal-stagger'        },
+
+    // CONTACTO
+    { sel: '#contacto .contacto-info',            cls: 'reveal reveal-left'    },
+    { sel: '#contacto .divider',                  cls: 'reveal-grow'           },
+    { sel: '#contacto .contacto-cta',             cls: 'reveal reveal-right'   },
+    { sel: '#contacto .contact-item',              cls: 'reveal reveal-up'      },
+    { sel: '#contacto .social-strip',             cls: 'reveal reveal-up'      },
+
+    // FOOTER
+    { sel: 'footer .footer-logo',                 cls: 'reveal reveal-up'      },
+    { sel: 'footer .footer-social',               cls: 'reveal reveal-up'      },
+    { sel: 'footer .footer-copy',                 cls: 'reveal reveal-up'      },
+  ];
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if(entry.isIntersecting){
+        entry.target.classList.add('reveal-visible');
+      } else {
+        entry.target.classList.remove('reveal-visible');
+      }
+    });
+  }, {
+    threshold: 0.15,
+    rootMargin: '0px 0px -60px 0px'
+  });
+
+  targets.forEach(({ sel, cls }) => {
+    document.querySelectorAll(sel).forEach((el, i) => {
+      cls.split(' ').forEach(c => el.classList.add(c));
+      // Pequeño desfasaje entre elementos del mismo selector (ej: varios contact-item)
+      if(i > 0) el.style.transitionDelay = (i * 0.12) + 's';
+      observer.observe(el);
+    });
+  });
+
+  // ── PRODUCTOS: caso especial ──────────────────────────────
+  // Título y carruseles se activan/desactivan JUNTOS, mirando
+  // la SECCIÓN completa (no cada elemento por separado). El
+  // orden "título primero, carruseles después" lo da el delay
+  // fijo en CSS (#carrousels-container.reveal), así que no
+  // depende de seguir bajando el scroll.
+  const tituloProductos = document.querySelector('#productos .productos-header');
+  const carruselesProductos = document.getElementById('carrousels-container');
+  if(tituloProductos) tituloProductos.classList.add('reveal', 'reveal-up');
+  if(carruselesProductos) carruselesProductos.classList.add('reveal', 'reveal-up');
+
+  const productosSection = document.getElementById('productos');
+  if(productosSection){
+    const productosObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if(entry.isIntersecting){
+          if(tituloProductos) tituloProductos.classList.add('reveal-visible');
+          if(carruselesProductos) carruselesProductos.classList.add('reveal-visible');
+        } else if(entry.boundingClientRect.top > 0){
+          // Solo resetea si la sección quedó por DEBAJO del viewport
+          // (volviste a subir). Si salió por ARRIBA (bajaste hacia
+          // Contacto) no se resetea, para que no quede en blanco.
+          if(tituloProductos) tituloProductos.classList.remove('reveal-visible');
+          if(carruselesProductos) carruselesProductos.classList.remove('reveal-visible');
+        }
+      });
+    }, {
+      threshold: 0.15,
+      rootMargin: '0px 0px -60px 0px'
+    });
+    productosObserver.observe(productosSection);
+  }
+
+  // ── CADA CARRUSEL individual ──────────────────────────────
+  // Además de la animación general del contenedor, cada
+  // .cat-section (un carrusel por categoría) anima por separado
+  // al entrar en pantalla mientras vas bajando, y se repite
+  // cada vez que vuelve a aparecer — igual que el resto.
+  const carruselesObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if(entry.isIntersecting){
+        entry.target.classList.add('reveal-visible');
+      } else if(entry.boundingClientRect.top > 0){
+        // Solo resetea si el carrusel quedó por DEBAJO del viewport
+        // (volviste a subir). Si salió por ARRIBA (ya lo pasaste
+        // bajando, por ejemplo el último carrusel al llegar a
+        // Contacto) no se resetea, para evitar el vacío en blanco.
+        entry.target.classList.remove('reveal-visible');
+      }
+    });
+  }, {
+    threshold: 0.12,
+    rootMargin: '0px 0px -40px 0px'
+  });
+
+  // Observa los carruseles que ya existan al momento de correr esto
+  document.querySelectorAll('#carrousels-container .cat-section').forEach(sec => {
+    carruselesObserver.observe(sec);
+  });
+
+  // Los carruseles se destruyen y recrean todo el tiempo (buildAllCarousels
+  // se llama al editar en admin, al hacer resize, al cargar más productos,
+  // etc.), así que usamos un MutationObserver para que cualquier .cat-section
+  // NUEVA se registre automáticamente sin tener que tocar este archivo de nuevo.
+  if(carruselesProductos){
+    const carruselesWatcher = new MutationObserver(() => {
+      document.querySelectorAll('#carrousels-container .cat-section').forEach(sec => {
+        if(!sec.dataset.revealObservado){
+          sec.dataset.revealObservado = '1';
+          carruselesObserver.observe(sec);
+        }
+      });
+    });
+    carruselesWatcher.observe(carruselesProductos, { childList: true });
+  }
+
+  // Los carruseles de productos se generan dinámicamente después de
+  // cargar Firebase — cuando aparecen, si la sección "productos" ya
+  // está visible en pantalla, los revelamos igual (evita que queden
+  // ocultos por haberse creado después de que el observer ya disparó).
+  if(productosSection){
+    const lateObserver = new MutationObserver(() => {
+      const rect = productosSection.getBoundingClientRect();
+      const enPantalla = rect.top < window.innerHeight && rect.bottom > 0;
+      if(enPantalla){
+        if(tituloProductos) tituloProductos.classList.add('reveal-visible');
+        if(carruselesProductos) carruselesProductos.classList.add('reveal-visible');
+      }
+    });
+    lateObserver.observe(productosSection, { childList: true, subtree: true });
+  }
+}
 
 
 
@@ -1047,7 +1247,7 @@ function buildAllCarousels(){
 
 function crearSeccionCarrusel(cat, catId, showDivider){
   const section = document.createElement('div');
-  section.className = 'cat-section' + (cat === OFERTA_CAT ? ' cat-section-ofertas' : '');
+  section.className = 'cat-section reveal' + (cat === OFERTA_CAT ? ' cat-section-ofertas' : '');
   section.id = 'section-' + catId;
 
   if(showDivider){
