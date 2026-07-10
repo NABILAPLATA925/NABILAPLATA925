@@ -1216,14 +1216,25 @@
   /* Grilla 2x2 en mobile */
   .carrusel-grupo-mobile {
     flex-shrink: 0;
+    box-sizing: border-box;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important; /* debe coincidir con el gap usado en getCardWidth() del JS */
   }
   .carrusel-grupo-mobile .producto-card {
     width: 100% !important;
+    max-width: 100%;
     flex: none !important;
     aspect-ratio: 3/4;
+    box-sizing: border-box;
+    min-width: 0; /* evita que el grid desborde por contenido interno (imágenes, texto) */
   }
   .carrusel-track-outer {
     overflow: hidden !important;
+    max-width: 100%;
+  }
+  .carrusel-track {
+    box-sizing: border-box;
   }
 
   /* ── HERO ─────────────────────────────────────── */

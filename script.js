@@ -1114,10 +1114,10 @@ function buildTrack(catId, prods){
     grupos.forEach(grupo => {
       const grp = document.createElement('div');
       grp.className = 'carrusel-grupo-mobile';
-      grp.style.flex = `0 0 ${cardW * 2 + 10}px`;
+      grp.style.flex = `0 0 ${getGrupoMobileWidth()}px`;
       grp.style.display = 'grid';
       grp.style.gridTemplateColumns = '1fr 1fr';
-      grp.style.gap = '8px';
+      grp.style.gap = '10px'; // debe coincidir con el gap de getCardWidth()
       grupo.forEach(p => {
         const card = crearCard(p, false);
         card.style.flex = '';
@@ -1167,10 +1167,10 @@ function apendarATrackTodos(nuevosVisibles){
       const grupo = aRenderizar.slice(i, i + 4);
       const grp = document.createElement('div');
       grp.className = 'carrusel-grupo-mobile';
-      grp.style.flex = `0 0 ${cardW * 2 + 10}px`;
+      grp.style.flex = `0 0 ${getGrupoMobileWidth()}px`;
       grp.style.display = 'grid';
       grp.style.gridTemplateColumns = '1fr 1fr';
-      grp.style.gap = '8px';
+      grp.style.gap = '10px'; // debe coincidir con el gap de getCardWidth()
       grupo.forEach(p => {
         const card = crearCard(p, false);
         card.style.flex = '';
@@ -1260,12 +1260,20 @@ function crearCard(p, esClonado){
   return card;
 }
 
+function getGrupoMobileWidth(){
+  // Ancho real y exacto del contenedor visible del carrusel (evita desajustes
+  // de padding/gap calculados "a mano", que eran la causa de columnas
+  // asimétricas y de desbordes horizontales que forzaban el zoom en mobile).
+  const outer = document.querySelector('.carrusel-track-outer');
+  if(outer) return outer.clientWidth;
+  return window.innerWidth - 48; // fallback si aún no existe el contenedor
+}
+
 function getCardWidth(){
   const gap = 10;
   if(esMobile()){
     // 2 columnas → cada card ocupa la mitad del contenedor menos el gap central
-    const padding = 48;
-    const containerW = window.innerWidth - padding;
+    const containerW = getGrupoMobileWidth();
     return (containerW - gap) / 2;
   }
   const visibleN = visiblePorPantalla();
@@ -1280,7 +1288,7 @@ function actualizarCarrusel(catId){
   const outer  = track.closest('.carrusel-track-outer');
   const cardW  = getCardWidth();
   if(esMobile()){
-    const grupoW = cardW * 2 + 10;
+    const grupoW = getGrupoMobileWidth();
     Array.from(track.children).forEach(c => { c.style.flex = `0 0 ${grupoW}px`; });
     if(outer) outer.scrollLeft = (posCarrusel[catId] || 0) * (grupoW + 20);
   } else {
@@ -1303,7 +1311,7 @@ function moverCarrusel(catId, dir){
   const outer = track?.closest('.carrusel-track-outer');
   if(esMobile()){
     const cardW  = getCardWidth();
-    const grupoW = cardW * 2 + 10;
+    const grupoW = getGrupoMobileWidth();
     if(outer) outer.scrollLeft = posCarrusel[catId] * (grupoW + 20);
   } else {
     if(outer) outer.scrollLeft = posCarrusel[catId] * (getCardWidth() + 20);
