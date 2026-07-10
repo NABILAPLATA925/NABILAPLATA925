@@ -1872,7 +1872,6 @@ async function guardarProducto(){
     : '';
 
   const precioOriginal = precio;
-  const precioFinal = esOferta ? precioOferta : precio;
 
   // "Ofertas" se agrega/quita del listado de categorías del producto
   // al final, para no pisar la categoría principal que se muestra en la card
@@ -1887,12 +1886,12 @@ async function guardarProducto(){
     productoEditando.tipos  = tiposFinal;
     productoEditando.tipo   = tiposFinal[0]; // compatibilidad legacy
     productoEditando.desc   = desc;
-    productoEditando.precio = precioFinal;
+    productoEditando.precio = precioOriginal; // siempre el precio original (se tacha si está en oferta)
     productoEditando.precioOriginal = esOferta ? precioOriginal : '';
     productoEditando.img    = imgPortada;
     productoEditando.imgs   = reordenadas;
     productoEditando.enOferta = esOferta;
-    if(esOferta) productoEditando.precioOferta = precioOriginal;
+    if(esOferta) productoEditando.precioOferta = precioOferta; // precio con descuento (se destaca)
     else {
       delete productoEditando.precioOferta;
       delete productoEditando.precioOriginal;
@@ -1900,14 +1899,14 @@ async function guardarProducto(){
   } else {
     productos.push({
       nombre,
-      precio: precioFinal,
+      precio: precioOriginal, // siempre el precio original (se tacha si está en oferta)
       tipo: tiposFinal[0],
       tipos: tiposFinal,
       desc,
       img: imgPortada,
       imgs: reordenadas,
       enOferta: esOferta,
-      ...(esOferta ? { precioOferta: precioOriginal } : {})
+      ...(esOferta ? { precioOferta: precioOferta } : {}) // precio con descuento (se destaca)
     });
   }
 
