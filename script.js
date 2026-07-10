@@ -853,13 +853,17 @@ function initScrollReveal(){
         if(entry.isIntersecting){
           if(tituloProductos) tituloProductos.classList.add('reveal-visible');
           if(carruselesProductos) carruselesProductos.classList.add('reveal-visible');
-        } else if(entry.boundingClientRect.top > 0){
-          // Solo resetea si la sección quedó por DEBAJO del viewport
-          // (volviste a subir). Si salió por ARRIBA (bajaste hacia
-          // Contacto) no se resetea, para que no quede en blanco.
-          if(tituloProductos) tituloProductos.classList.remove('reveal-visible');
-          if(carruselesProductos) carruselesProductos.classList.remove('reveal-visible');
         }
+        // NOTA: a propósito ya NO se remueve 'reveal-visible' acá.
+        // Cuando Firebase termina de cargar y buildAllCarousels() llena
+        // #carrousels-container, la sección cambia de alto de golpe
+        // (layout shift) y el observer se vuelve a disparar con
+        // isIntersecting=false aunque el usuario no se movió. Antes
+        // eso volvía a ocultar la sección (classList.remove) y, como
+        // no había más scroll, quedaba en blanco para siempre — hasta
+        // que abrir DevTools forzaba un resize que "despertaba" todo
+        // de nuevo. Ahora, una vez revelada, la sección de productos
+        // se queda visible.
       });
     }, {
       threshold: 0.15,
@@ -877,13 +881,12 @@ function initScrollReveal(){
     entries.forEach(entry => {
       if(entry.isIntersecting){
         entry.target.classList.add('reveal-visible');
-      } else if(entry.boundingClientRect.top > 0){
-        // Solo resetea si el carrusel quedó por DEBAJO del viewport
-        // (volviste a subir). Si salió por ARRIBA (ya lo pasaste
-        // bajando, por ejemplo el último carrusel al llegar a
-        // Contacto) no se resetea, para evitar el vacío en blanco.
-        entry.target.classList.remove('reveal-visible');
       }
+      // NOTA: igual que en productosObserver, ya no se remueve acá.
+      // Los carruseles se reconstruyen todo el tiempo (resize, admin,
+      // "cargar más productos"), y ese "remove" por layout shift podía
+      // dejar un carrusel oculto para siempre sin que el usuario hiciera
+      // nada raro. Una vez revelado, se queda visible.
     });
   }, {
     threshold: 0.12,
