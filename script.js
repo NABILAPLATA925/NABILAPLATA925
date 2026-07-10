@@ -50,8 +50,7 @@ const OFERTA_CAT = 'Ofertas';
 
 // ── PAGINACIÓN por carrusel ────────────────────────────────────
 // catKey = nombre de categoría (o 'todos')
-const paginacion = {};
-// paginacion[catKey] = { lastDoc, agotado, cargando }
+
 
 let categoriasOcultas = []; // nombres de categorías ocultas
 let categoriaOrden = [];    // orden personalizado de categorías
@@ -236,7 +235,7 @@ function applyColores(c) {
 // ════════════════════════════════════════════════════════
 //  FIREBASE: cargar y guardar
 // ════════════════════════════════════════════════════════
-// Carga metadata + primer batch de cada categoría conocida
+// Carga metadata + TODO el catálogo de productos en una sola consulta
 async function cargarDesdeFirebase(){
   // 1. Metadata (1 lectura)
   try {
@@ -265,21 +264,6 @@ async function cargarDesdeFirebase(){
       // Viene en el mismo doc de metadata → no suma lecturas extra.
       indiceCompleto    = Array.isArray(m.indice) ? m.indice : [];
       indiceVersion     = m.indiceVersion || 0;
-      // Categorías conocidas vienen del meta para no necesitar un query extra
-      if(Array.isArray(m.categorias) && m.categorias.length){
-        // Cargar primer batch por cada categoría
-        const batchesCat = await Promise.all(
-          m.categorias.map(cat => cargarBatchCategoria(cat))
-        );
-        batchesCat.forEach(prods => {
-          prods.forEach(p => {
-            if(!productos.find(x => x.id === p.id)) productos.push(p);
-          });
-        });
-        // "Todos los productos" se construye desde los productos ya en memoria
-        // (no necesita query propio — evita duplicados y se mantiene siempre sincronizado)
-        return productos;
-      }
     } else {
       await META_REF.set({ categoriasOcultas: [], categoriaOrden: [], ordenCategorias: {}, productosOcultos: [], categorias: [] });
     }
@@ -287,167 +271,10 @@ async function cargarDesdeFirebase(){
     console.warn('No se pudo cargar metadata:', err);
   }
 
-  // Fallback: si no hay categorías en meta, carga todo (primera vez o base vieja)
+  // Carga TODO el catálogo de productos en una sola consulta
   const prodsSnap = await PRODS_COL.get({ source: 'server' });
   if(prodsSnap.empty) return [];
   return prodsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-}
-
-// Carga un batch de N productos para UNA categoría
-async function cargarBatchCategoria(cat, lastDoc = null){
-  const BATCH = (SITE_CONFIG.paginacionBatch || 8);
-  let q = PRODS_COL
-    .where('tipos', 'array-contains', cat)
-    .orderBy('nombre')
-    .limit(BATCH);
-  if(lastDoc) q = q.startAfter(lastDoc);
-
-  const snap = await q.get({ source: 'server' });
-  const docs  = snap.docs;
-  const prods = docs.map(d => ({ ...d.data(), id: d.id }));
-
-  // Guardar cursor para siguiente batch
-  if(!paginacion[cat]) paginacion[cat] = {};
-  paginacion[cat].lastDoc  = docs.length ? docs[docs.length - 1] : paginacion[cat].lastDoc;
-  paginacion[cat].agotado  = docs.length < BATCH;
-  paginacion[cat].cargando = false;
-
-  return prods;
-}
-
-
-
-
-// Carga el siguiente batch para una categoría y agrega al carrusel
-async function cargarMasEnCategoria(cat){
-  const estado = paginacion[cat];
-  if(!estado || estado.agotado || estado.cargando) return;
-
-  estado.cargando = true;
-  const nuevos = await cargarBatchCategoria(cat, estado.lastDoc);
-
-  if(!nuevos.length){ estado.agotado = true; return; }
-
-  // Agregar a la lista global sin duplicados
-  nuevos.forEach(p => {
-    if(!productos.find(x => x.id === p.id)) productos.push(p);
-  });
-
-  // Agregar las cards nuevas directamente al track (sin reconstruir todo)
-  const catId  = getCatId(cat);
-  const track  = document.getElementById('carrusel-track-' + catId);
-  if(!track) return;
-  const cardW = getCardWidth();
-  // Filtrar ocultos
-  const nuevosVisibles = nuevos.filter(p => ADMIN_MODE || !productosOcultos.includes(p.id));
-  nuevosVisibles.forEach(p => carruselProds[catId].push(p));
-
-  if(esMobile()){
-    // En mobile hay que reconstruir el último grupo incompleto si existe,
-    // porque el batch anterior puede haber dejado un grupo con < 4 cards
-    const totalAhora = carruselProds[catId].length;
-    const totalAntes = totalAhora - nuevosVisibles.length;
-    // ¿El batch anterior terminó en un grupo incompleto?
-    const restoAnterior = totalAntes % 4;
-    // Eliminar el último grupo del track si estaba incompleto
-    if(restoAnterior !== 0 && track.lastChild){
-      track.removeChild(track.lastChild);
-    }
-    // Productos a renderizar: los que faltaban del grupo incompleto + los nuevos
-    const aRenderizar = restoAnterior !== 0
-      ? carruselProds[catId].slice(totalAntes - restoAnterior)
-      : nuevosVisibles;
-    // Agrupar de a 4
-    for(let i = 0; i < aRenderizar.length; i += 4){
-      const grupo = aRenderizar.slice(i, i + 4);
-      const grp = document.createElement('div');
-      grp.className = 'carrusel-grupo-mobile';
-      grp.style.flex = `0 0 ${cardW * 2 + 10}px`;
-      grp.style.display = 'grid';
-      grp.style.gridTemplateColumns = '1fr 1fr';
-      grp.style.gap = '8px';
-      grupo.forEach(p => {
-        const card = crearCard(p, false);
-        card.style.flex = '';
-        card.style.width = '100%';
-        grp.appendChild(card);
-      });
-      track.appendChild(grp);
-    }
-  } else {
-    nuevosVisibles.forEach(p => {
-      const card = crearCard(p, false);
-      card.style.flex = `0 0 ${cardW}px`;
-      track.appendChild(card);
-    });
-  }
-
-  // Actualizar botones de la categoría
-  const visible = visiblePorPantalla();
-  const total   = carruselProds[catId].length;
-  const btnPrev = document.getElementById('btn-prev-' + catId);
-  const btnNext = document.getElementById('btn-next-' + catId);
-  if(btnPrev) btnPrev.style.display = total <= visible ? 'none' : '';
-  if(btnNext) btnNext.style.display = total <= visible ? 'none' : '';
-
-  // Agregar SOLO los productos nuevos al final del track "todos"
-  // (sin reconstruirlo → no resetea scroll ni posición del carrusel)
-  if(nuevosVisibles.length > 0){
-    const idsEnTodos = new Set((carruselProds['todos'] || []).map(p => p.id));
-    const paraAgregar = nuevosVisibles.filter(p => !idsEnTodos.has(p.id));
-    apendarATrackTodos(paraAgregar);
-  }
-}
-
-// Carga el siguiente batch para "Todos los productos".
-// Como "todos" se construye desde los productos en memoria, al paginar
-// simplemente cargamos más de las categorías que aún tienen batches pendientes.
-async function cargarMasEnTodos(){
-  const estado = paginacion['todos'];
-  if(estado && (estado.agotado || estado.cargando)) return;
-
-  // Marcar como cargando para evitar llamadas simultáneas
-  if(!paginacion['todos']) paginacion['todos'] = {};
-  paginacion['todos'].cargando = true;
-
-  const cats = getCategorias().filter(c => !categoriasOcultas.includes(c));
-
-  // Intentar cargar el siguiente batch de cualquier categoría no agotada
-  let seCargoAlgo = false;
-  for(const cat of cats){
-    const est = paginacion[cat];
-    if(!est || est.agotado || est.cargando) continue;
-
-    const nuevos = await cargarBatchCategoria(cat, est.lastDoc);
-    if(!nuevos.length) continue;
-
-    seCargoAlgo = true;
-    // Agregar a memoria global sin duplicados
-    nuevos.forEach(p => {
-      if(!productos.find(x => x.id === p.id)) productos.push(p);
-    });
-    break; // Un batch a la vez es suficiente; el usuario puede seguir scrolleando
-  }
-
-  paginacion['todos'].cargando = false;
-
-  if(!seCargoAlgo){
-    // Todas las categorías agotadas → "todos" también agotado
-    paginacion['todos'].agotado = true;
-    return;
-  }
-
-  // Agregar SOLO los productos nuevos al final del track "todos"
-  // (sin reconstruirlo → no resetea scroll ni posición del carrusel)
-  const trackTodos = document.getElementById('carrusel-track-todos');
-  if(!trackTodos) return;
-
-  const idsEnTodos = new Set((carruselProds['todos'] || []).map(p => p.id));
-  const paraAgregar = productos.filter(p =>
-    !idsEnTodos.has(p.id) && (ADMIN_MODE || !productosOcultos.includes(p.id))
-  );
-
-  apendarATrackTodos(paraAgregar);
 }
 
 // Guarda SOLO la metadata (categorías, orden, visibilidad)
@@ -1225,26 +1052,6 @@ function buildAllCarousels(){
 
     buildTrack(catId, prods);
 
-    const track = document.getElementById('carrusel-track-' + catId);
-    if(!track) return;
-
-    // ── Lazy load al scroll horizontal ─────────────────────────
-    const outer = track.closest('.carrusel-track-outer');
-    if(!outer) return;
-
-    outer.addEventListener('scroll', () => {
-      const total   = carruselProds[catId]?.length || 0;
-      const pos     = posCarrusel[catId] || 0;
-      const visible = visiblePorPantalla();
-      if(total - pos - visible <= 2){
-        if(catNombre === 'todos'){
-          cargarMasEnTodos();
-        } else {
-          cargarMasEnCategoria(catNombre);
-        }
-      }
-    }, { passive: true });
-
   });
 }
 
@@ -1500,29 +1307,6 @@ function moverCarrusel(catId, dir){
     if(outer) outer.scrollLeft = posCarrusel[catId] * (grupoW + 20);
   } else {
     if(outer) outer.scrollLeft = posCarrusel[catId] * (getCardWidth() + 20);
-  }
-
-  // Trigger lazy load: si estamos cerca del final del track, cargar más productos
-  // Para "todos", el catNombre es el propio catId
-  const catNombre = catId === 'todos'
-    ? 'todos'
-    : (Object.keys(carruselProds).includes(catId)
-        ? (() => {
-            const cats = getCategorias();
-            return cats.find(c => getCatId(c) === catId) || null;
-          })()
-        : null);
-  if(catNombre){
-    const totalProds  = carruselProds[catId]?.length || 0;
-    const totalGrupos = esMobile() ? Math.ceil(totalProds / 4) : totalProds;
-    const posActual   = posCarrusel[catId] || 0;
-    if(totalGrupos - posActual <= 2){
-      if(catId === 'todos'){
-        cargarMasEnTodos();
-      } else {
-        cargarMasEnCategoria(catNombre);
-      }
-    }
   }
 }
 
