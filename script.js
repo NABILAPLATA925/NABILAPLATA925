@@ -614,7 +614,7 @@ async function eliminarProductoEnFirebase(prodId){
 }
 
 // Guarda TODO (batch): útil para restaurar o migrar desde formato legacy
-async function guardarEnFirebase(){
+async function guardarEnFirebase(productosModificados){
   try {
     const batch = db.batch();
 
@@ -636,8 +636,11 @@ async function guardarEnFirebase(){
       if(!idsActuales.has(doc.id)) batch.delete(doc.ref);
     });
 
-    // Crear o actualizar cada producto
-    productos.forEach(p => {
+    // Crear o actualizar SOLO los productos modificados (o todos si no se especifica),
+    // para no reenviar las imágenes base64 de productos que no cambiaron y así evitar
+    // superar los límites de tamaño de batch de Firestore.
+    const aGuardar = productosModificados || productos;
+    aGuardar.forEach(p => {
       if(!p.id){
         const ref = PRODS_COL.doc();
         p.id = ref.id;
@@ -2111,7 +2114,7 @@ async function guardarProducto(){
       desc,
       img: imgPortada,
       imgs: reordenadas,
-      enOferta,
+      enOferta: esOferta,
       ...(esOferta ? { precioOferta: precioOriginal } : {})
     });
   }
@@ -2382,13 +2385,24 @@ async function eliminarCategoria(cat){
     ? `¿Eliminar la categoría "${cat}" y sus ${count} producto${count !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`
     : `¿Eliminar la categoría "${cat}"?`;
   if(!confirm(msg)) return;
+
+  // Productos que se eliminan por completo (tenían solo esta categoría)
+  const eliminados = productos.filter(p => {
+    const lista = Array.isArray(p.tipos) ? p.tipos : [p.tipo];
+    return lista.includes(cat) && lista.length <= 1;
+  });
+  // Productos que se modifican (pierden esta categoría pero conservan otras)
+  const modificados = [];
+
   productos = productos.filter(p => {
     const lista = Array.isArray(p.tipos) ? p.tipos : [p.tipo];
     return !lista.includes(cat) || lista.length > 1;
   }).map(p => {
     if(Array.isArray(p.tipos) && p.tipos.includes(cat)){
       const nuevos = p.tipos.filter(c => c !== cat);
-      return { ...p, tipos: nuevos, tipo: nuevos[0] };
+      const actualizado = { ...p, tipos: nuevos, tipo: nuevos[0] };
+      modificados.push(actualizado);
+      return actualizado;
     }
     return p;
   });
@@ -2397,8 +2411,10 @@ async function eliminarCategoria(cat){
   buildAllCarousels();
   mostrarToast('Guardando…');
   try {
-    // Usa batch completo porque hay productos eliminados
-    const exito = await guardarEnFirebase();
+    // Solo se reenvían al batch los productos que cambiaron (más los eliminados,
+    // que ya no están en `productos` y se limpian por comparación de IDs). Esto evita
+    // reenviar las imágenes base64 de todos los demás productos sin cambios.
+    const exito = await guardarEnFirebase(modificados);
     if(exito) mostrarToast(`Categoría eliminada ✓`);
   } catch(err) {
     console.error('Error eliminando categoría:', err);
