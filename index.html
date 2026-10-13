@@ -515,14 +515,16 @@
       </div>
       <div class="admin-field">
         <label>Imagen de la sección Nosotros</label>
+        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Usá un PNG con fondo transparente (se conserva la transparencia).</p>
         <label class="admin-foto-label" for="ep-nosotros-img-input" style="margin-top:6px">
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           <span id="ep-nosotros-img-texto">Hacé clic para cambiar la imagen</span>
         </label>
         <input type="file" id="ep-nosotros-img-input" accept="image/*" style="display:none" onchange="cargarImagenNosotros(event)">
         <div id="ep-nosotros-img-preview" style="margin-top:10px;display:none">
-          <img id="ep-nosotros-img-thumb" src="" alt="Preview" style="max-width:160px;border-radius:4px;border:1px solid var(--detalles)">
+          <img id="ep-nosotros-img-thumb" src="" alt="Preview" style="max-width:160px;border-radius:4px;border:1px solid var(--detalles);background:#f9f9f9">
         </div>
+        <button type="button" onclick="usarImagenNosotrosOriginal()" style="margin-top:8px;background:none;border:1px dashed var(--detalles);border-radius:2px;padding:6px 12px;cursor:pointer;font-size:12px;color:var(--text-soft)">↺ Usar la imagen original</button>
       </div>
     </div>
 

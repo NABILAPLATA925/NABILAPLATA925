@@ -175,11 +175,13 @@ function applyConfig() {
   document.getElementById('nosotros-label').textContent = C.nosotros.label;
   document.getElementById('nosotros-titulo').textContent = C.nosotros.titulo;
   document.getElementById('nosotros-slogan').textContent = C.nosotros.slogan;
-  // Imagen de Nosotros subida desde "Editar página" (antes no se aplicaba al recargar)
-  if(C._nosotrosImg){
-    const nosImg = document.querySelector('.about-img-placeholder img');
-    const src = cldUrl(C._nosotrosImg, CLD_LOGO);
-    if(nosImg && nosImg.getAttribute('src') !== src) nosImg.src = src;
+  // Imagen de Nosotros subida desde "Editar página" (antes no se aplicaba al recargar).
+  // Si no hay ninguna (o se eligió "usar la original"), queda la de index.html.
+  const nosImg = document.querySelector('.about-img-placeholder img');
+  if(nosImg){
+    if(!nosImg.dataset.srcOriginal) nosImg.dataset.srcOriginal = nosImg.getAttribute('src');
+    const src = C._nosotrosImg ? cldUrl(C._nosotrosImg, CLD_LOGO) : nosImg.dataset.srcOriginal;
+    if(nosImg.getAttribute('src') !== src) nosImg.src = src;
   }
   document.getElementById('nosotros-parrafos').innerHTML =
     C.nosotros.parrafos.map(p => `<p>${p}</p>`).join('');
@@ -909,7 +911,10 @@ function initScrollReveal(){
         // se queda visible.
       });
     }, {
-      threshold: 0.15,
+      // threshold 0 (apenas asoma): la sección de productos es MUY alta (crece con el
+      // catálogo) y con un porcentaje (antes 0.15) nunca llegaba a cumplirse →
+      // título y carruseles quedaban invisibles para siempre.
+      threshold: 0,
       rootMargin: '0px 0px -60px 0px'
     });
     productosObserver.observe(productosSection);
@@ -2299,6 +2304,7 @@ const MARQUEE_REF = db.collection('catalogo').doc('marquee');
 
 // Imagen nosotros pendiente de guardar (base64)
 let nosotrosImgPendiente = null;
+let nosotrosUsarOriginal = false;   // true = volver a la imagen de index.html
 // Imagen del logo del hero pendiente de guardar (base64)
 let heroLogoImgPendiente = null;
 let navLogoImgPendiente = null;
@@ -2393,6 +2399,7 @@ function abrirModalEditarPagina(){
 
   // Imagen nosotros
   nosotrosImgPendiente = null;
+  nosotrosUsarOriginal = false;
   const preview = document.getElementById('ep-nosotros-img-preview');
   const thumb   = document.getElementById('ep-nosotros-img-thumb');
   if(C._nosotrosImg){
@@ -2449,11 +2456,24 @@ function cambiarTabEP(tab){
   document.getElementById('ep-panel-' + tab).style.display = 'block';
 }
 
+// "Usar la imagen original": borra la imagen subida y vuelve a la de index.html (img/logo.png)
+function usarImagenNosotrosOriginal(){
+  nosotrosImgPendiente = null;
+  nosotrosUsarOriginal = true;
+  const original = document.querySelector('.about-img-placeholder img');
+  document.getElementById('ep-nosotros-img-thumb').src = (original && original.dataset.srcOriginal) || 'img/logo.png';
+  document.getElementById('ep-nosotros-img-preview').style.display = 'block';
+  document.getElementById('ep-nosotros-img-texto').textContent = 'Se va a usar la imagen original — clic para subir otra';
+}
+
 function cargarImagenNosotros(e){
   const file = e.target.files[0];
   if(!file) return;
-  comprimirImagen(file, base64 => {
+  // PNG (no JPEG): conserva la transparencia del logo. Con JPEG el fondo
+  // transparente se volvía negro.
+  comprimirImagenPNG(file, base64 => {
     nosotrosImgPendiente = base64;
+    nosotrosUsarOriginal = false;
     document.getElementById('ep-nosotros-img-thumb').src = base64;
     document.getElementById('ep-nosotros-img-preview').style.display = 'block';
     document.getElementById('ep-nosotros-img-texto').textContent = 'Imagen cargada — clic para cambiar';
@@ -2510,6 +2530,7 @@ async function guardarEditarPagina(){
     C.contacto.ctaBoton        = document.getElementById('ep-cta-boton').value.trim();
 
     if(subidas.nosotros) C._nosotrosImg = subidas.nosotros;
+    else if(nosotrosUsarOriginal) C._nosotrosImg = null;
     if(subidas.hero)     C._heroLogoImg = subidas.hero;
     if(subidas.nav)      C._navLogoImg  = subidas.nav;
 
@@ -2539,6 +2560,7 @@ async function guardarEditarPagina(){
     // ── 4) Aplicar en vivo a la página (incluye logos e imagen de Nosotros) ──
     applyConfig();
     nosotrosImgPendiente = heroLogoImgPendiente = navLogoImgPendiente = null;
+    nosotrosUsarOriginal = false;
     document.getElementById('edit-pagina-modal').classList.remove('active');
     mostrarToast('Cambios guardados ✓');
   } catch(err){
