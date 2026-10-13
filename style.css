@@ -1897,3 +1897,10 @@ body.marquee-active {
   .marquee-item{ padding:0 10px; }
   .marquee-sep{ padding:0 7px; }
 }
+/* ── v5.0: aviso de error de carga + modal Herramientas ── */
+.carga-error{text-align:center;padding:3rem 1rem;color:var(--text-soft)}
+.carga-error p{margin-bottom:1.2rem}
+.tools-estado{font-size:12px;color:var(--text-soft);margin:4px 0 10px;line-height:1.5}
+.tools-log{font-size:12px;color:var(--text);margin-top:1rem;min-height:1.2em;line-height:1.5}
+#tools-modal .admin-field{margin-bottom:1.4rem}
+#tools-modal button[disabled], .btn-guardar[disabled]{opacity:.5;cursor:wait}

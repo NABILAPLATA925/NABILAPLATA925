@@ -7,17 +7,27 @@ const db = firebase.firestore();
 // La metadata (categorías, orden, etc.) va en un doc separado "__meta__"
 const PRODS_COL = db.collection('catalogo').doc('productos').collection('items');
 const META_REF  = db.collection('catalogo').doc('_meta');
+// UN solo documento con TODO el catálogo público (solo texto + URLs de Cloudinary).
+// Los visitantes leen solo este doc → ~4 lecturas por visita en vez de 1 por producto.
+const INDICE_REF = db.collection('catalogo').doc('_indice');
+// {cloudName, preset} de Cloudinary — solo legible por admins (ver reglas de Firestore)
+const CLOUDINARY_REF = db.collection('privado').doc('cloudinary');
 const auth = firebase.auth();
 
 
 //MANTENER SESIÓN
 auth.onAuthStateChanged(user => {
   if(user && ADMIN_REQUEST){
+    const yaEraAdmin = ADMIN_MODE;
     ADMIN_MODE = true;
     document.body.classList.add('admin');
     document.body.classList.add('admin-mode');
     document.getElementById('admin-bar').style.display = 'flex';
     posicionarNavYMarquee();
+    // Sesión ya iniciada de antes → no hace falta volver a pedir el login
+    const loginModal = document.getElementById('login-modal');
+    if(loginModal) loginModal.classList.remove('active');
+    if(!yaEraAdmin) iniciarSincronizacionAdmin().catch(() => {});
   } else if(user && !ADMIN_REQUEST){
     // Sesión activa pero URL normal → cerrar sesión silenciosamente
     auth.signOut();
@@ -32,10 +42,13 @@ const productosDefault = SITE_CONFIG.productosDefault;
 // ════════════════════════════════════════════════════════
 //  ESTADO GLOBAL
 // ════════════════════════════════════════════════════════
-let productos = [];
-let indiceCompleto = []; // Índice liviano {id,nombre,tipos,imgThumb,desc} de TODO el catálogo, para el buscador
-let indiceVersion = 0;   // Versión del esquema de miniaturas guardado en Firestore (ver INDICE_VERSION)
-let carrito = []; // Variable global para guardar el pedido
+let productos = [];      // TODO el catálogo (viene de catalogo/_indice o de la colección)
+let carrito = []; // Variable global para guardar el pedido (se persiste en localStorage)
+
+// Se resuelve cuando termina la primera carga del catálogo (con o sin éxito)
+let resolverCargaInicial;
+const CARGA_INICIAL = new Promise(r => { resolverCargaInicial = r; });
+let ADMIN_SYNC = null;   // promesa de la sincronización inicial del admin
 let posCarrusel = {};       // { catId: posicion }
 let carruselProds = {};     // { catId: [productos del carrusel] }
 
@@ -79,8 +92,7 @@ let marqueeDragSrcIndex = null;
 function applyConfig() {
   const C = SITE_CONFIG;
 
-  // Título del browser
-  document.title = `${C.marcaPrincipal} ${C.marcaItalica}`;
+  // El <title> queda el de index.html (más completo para SEO); no se pisa acá.
 
   // Fuentes — lee tipografia de config.js, inyecta variables CSS y carga Google Fonts
   const T = C.tipografia || {};
@@ -108,7 +120,9 @@ function applyConfig() {
     const families = uniqueFonts
       .map(f => `family=${f.replace(/ /g, '+')}:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400`)
       .join('&');
-    gfonts.href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
+    const nuevaUrl = `https://fonts.googleapis.com/css2?${families}&display=swap`;
+    // Solo cambiar si difiere de la que ya trae index.html (evita doble descarga)
+    if(gfonts.href !== nuevaUrl) gfonts.href = nuevaUrl;
   }
 
   document.body.style.fontFamily = `'${T.cuerpo || 'Jost'}', sans-serif`;
@@ -120,7 +134,7 @@ function applyConfig() {
   const navLogoContainer = document.getElementById('nav-logo');
   const navLogoSrc = C._navLogoImg || C.navLogoImgDefault || null;
   if (navLogoSrc) {
-    navLogoContainer.innerHTML = `<img src="${navLogoSrc}" class="nav-logo-img" alt="Logo"> ${C.marcaPrincipal} <span>${C.marcaItalica}</span>`;
+    navLogoContainer.innerHTML = `<img src="${esc(cldUrl(navLogoSrc, CLD_LOGO))}" class="nav-logo-img" alt="Logo"> ${C.marcaPrincipal} <span>${C.marcaItalica}</span>`;
   } else {
     navLogoContainer.innerHTML = `${C.marcaPrincipal} <span>${C.marcaItalica}</span>`;
   }
@@ -146,7 +160,9 @@ function applyConfig() {
   if(heroLogoSrc){
     heroTitleText.style.display = 'none';
     heroTitleImgWrap.style.display = 'block';
-    heroTitleImg.src = heroLogoSrc;
+    const heroSrcFinal = cldUrl(heroLogoSrc, CLD_LOGO);
+    // No reasignar si es la misma (evita recargar la imagen y cortar la animación)
+    if(heroTitleImg.getAttribute('src') !== heroSrcFinal) heroTitleImg.src = heroSrcFinal;
   } else {
     heroTitleImgWrap.style.display = 'none';
     heroTitleText.style.display = '';
@@ -159,13 +175,19 @@ function applyConfig() {
   document.getElementById('nosotros-label').textContent = C.nosotros.label;
   document.getElementById('nosotros-titulo').textContent = C.nosotros.titulo;
   document.getElementById('nosotros-slogan').textContent = C.nosotros.slogan;
+  // Imagen de Nosotros subida desde "Editar página" (antes no se aplicaba al recargar)
+  if(C._nosotrosImg){
+    const nosImg = document.querySelector('.about-img-placeholder img');
+    const src = cldUrl(C._nosotrosImg, CLD_LOGO);
+    if(nosImg && nosImg.getAttribute('src') !== src) nosImg.src = src;
+  }
   document.getElementById('nosotros-parrafos').innerHTML =
     C.nosotros.parrafos.map(p => `<p>${p}</p>`).join('');
   document.getElementById('nosotros-stats').innerHTML =
     C.nosotros.stats.map(s => `
       <div class="about-stat" style="display:inline-flex">
-        <span class="stat-num">${s.num}</span>
-        <span class="stat-label">${s.label}</span>
+        <span class="stat-num">${esc(s.num)}</span>
+        <span class="stat-label">${esc(s.label)}</span>
       </div>`).join('');
 
   // ── PRODUCTOS ────────────────────────────────────────
@@ -235,17 +257,21 @@ function applyColores(c) {
 // ════════════════════════════════════════════════════════
 //  FIREBASE: cargar y guardar
 // ════════════════════════════════════════════════════════
-// Carga metadata + TODO el catálogo de productos en una sola consulta
+// Visitantes: leen _meta + _indice (UN doc con todo el catálogo).
+// Si _indice todavía no existe (primera vez, o tras una restauración vieja),
+// se lee la colección completa como respaldo.
 async function cargarDesdeFirebase(){
-  // 1. Metadata (1 lectura)
-  try {
-    const metaSnap = await META_REF.get({ source: 'server' });
+  const [metaRes, indiceRes] = await Promise.allSettled([
+    META_REF.get({ source: 'server' }),
+    INDICE_REF.get({ source: 'server' })
+  ]);
+
+  if(metaRes.status === 'fulfilled'){
+    const metaSnap = metaRes.value;
     if(metaSnap.exists){
       const m = metaSnap.data();
 
       // ── Invalidación de caché por timestamp ──────────────────
-      // Si Firebase tiene un lastModified más nuevo que el caché local,
-      // limpiar el caché para forzar recarga fresca en inicializar()
       const serverTs = m.lastModified || 0;
       const localTs  = Number(localStorage.getItem('cache_ts') || '0');
       if(serverTs > localTs){
@@ -254,47 +280,103 @@ async function cargarDesdeFirebase(){
           localStorage.removeItem('config_cache');
         } catch(e) {}
       }
-      // ─────────────────────────────────────────────────────────
 
       categoriasOcultas = Array.isArray(m.categoriasOcultas) ? m.categoriasOcultas : [];
       categoriaOrden    = Array.isArray(m.categoriaOrden)    ? m.categoriaOrden    : [];
       ordenCategorias   = m.ordenCategorias || {};
       productosOcultos  = Array.isArray(m.productosOcultos)  ? m.productosOcultos  : [];
-      // Índice liviano del catálogo completo para el buscador.
-      // Viene en el mismo doc de metadata → no suma lecturas extra.
-      indiceCompleto    = Array.isArray(m.indice) ? m.indice : [];
-      indiceVersion     = m.indiceVersion || 0;
-    } else {
-      await META_REF.set({ categoriasOcultas: [], categoriaOrden: [], ordenCategorias: {}, productosOcultos: [], categorias: [] });
     }
-  } catch(err) {
-    console.warn('No se pudo cargar metadata:', err);
+  } else {
+    console.warn('No se pudo cargar metadata:', metaRes.reason);
   }
 
-  // Carga TODO el catálogo de productos en una sola consulta
-  const prodsSnap = await PRODS_COL.get({ source: 'server' });
-  if(prodsSnap.empty) return [];
-  return prodsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+  if(indiceRes.status === 'fulfilled' && indiceRes.value.exists){
+    const data = indiceRes.value.data();
+    if(Array.isArray(data.productos)) return data.productos.map(p => ({ ...p }));
+  }
+  return leerColeccionCompleta();
+}
+
+async function leerColeccionCompleta(){
+  const snap = await PRODS_COL.get({ source: 'server' });
+  return snap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+}
+
+// Forma normalizada de un producto. Se usa tanto para el doc del item
+// como para la entrada en catalogo/_indice.
+function productoParaIndice(p){
+  const imgs = Array.isArray(p.imgs) && p.imgs.length ? p.imgs : (p.img ? [p.img] : []);
+  const tipos = Array.isArray(p.tipos) ? p.tipos : (p.tipo ? [p.tipo] : []);
+  const out = {
+    id:     p.id,
+    nombre: p.nombre || '',
+    precio: p.precio || '',
+    tipo:   p.tipo || tipos[0] || '',
+    tipos,
+    desc:   p.desc || '',
+    img:    imgs[0] || '',   // portada = imgs[0] (antes se guardaba duplicada)
+    imgs,
+    enOferta: !!p.enOferta
+  };
+  if(p.enOferta && p.precioOferta){
+    out.precioOferta   = p.precioOferta;
+    out.precioOriginal = p.precioOriginal || p.precio || '';
+  }
+  return out;
+}
+
+const INDICE_MAX_BYTES = 900000; // margen bajo el límite de 1 MiB por documento
+
+// Devuelve el contenido del doc _indice, o null si no entra (ej: quedan fotos base64)
+function construirIndice(ts){
+  const data = { productos: productos.map(productoParaIndice), lastModified: ts };
+  return new Blob([JSON.stringify(data)]).size <= INDICE_MAX_BYTES ? data : null;
+}
+
+// Aplica cambios de productos + regenera _indice + actualiza _meta.
+// ops: [{tipo:'set'|'delete', ref, data}] — se parte en lotes de 400 (límite 500/batch).
+async function commitCambios(ops = []){
+  const ts = Date.now();
+  const LOTE = 400;
+  const aplicar = (b, op) => op.tipo === 'delete' ? b.delete(op.ref) : b.set(op.ref, op.data);
+  const lotes = [];
+  for(let i = 0; i < ops.length; i += LOTE) lotes.push(ops.slice(i, i + LOTE));
+  const resto = lotes.pop() || [];
+  for(const lote of lotes){
+    const b = db.batch();
+    lote.forEach(op => aplicar(b, op));
+    await b.commit();
+  }
+
+  const batch = db.batch();
+  resto.forEach(op => aplicar(batch, op));
+  const indice = construirIndice(ts);
+  if(indice) batch.set(INDICE_REF, indice);
+  else batch.delete(INDICE_REF);
+  const FV = firebase.firestore.FieldValue;
+  batch.set(META_REF, {
+    lastModified: ts,
+    categorias: getCategorias(),
+    // Campos del buscador viejo (v4.x) que ya no se usan: se limpian para que _meta sea liviano
+    indice: FV.delete(),
+    indiceVersion: FV.delete()
+  }, { merge: true });
+  await batch.commit();
+  try { localStorage.setItem('cache_ts', String(ts)); } catch(e) {}
+  if(!indice){
+    mostrarToastError('⚠ El catálogo todavía tiene fotos guardadas dentro de la base (formato viejo).<br>Andá a ⚙ Herramientas → "Migrar fotos a Cloudinary".', 12000);
+  }
 }
 
 // Guarda SOLO la metadata (categorías, orden, visibilidad)
 async function guardarMetaEnFirebase(){
-  // Recalcular lista de categorías conocidas para el loader paginado
-  const cats = getCategorias();
   const ts = Date.now();
-  // IMPORTANTE: usar merge:true (y mandar el índice también) — esta función
-  // se llama muy seguido (ocultar producto, eliminar, reordenar, etc.) y un
-  // .set() sin merge REEMPLAZA todo el documento _meta, borrando el campo
-  // `indice` que guarda el catálogo completo para el buscador. Sin esto,
-  // el buscador termina encontrando solo lo que está cargado en memoria
-  // (los carruseles ya scrolleados) en vez de TODO el catálogo.
   await META_REF.set({
     categoriasOcultas,
     categoriaOrden,
     ordenCategorias,
     productosOcultos,
-    categorias: cats,
-    indice: indiceCompleto,
+    categorias: getCategorias(),
     lastModified: ts
   }, { merge: true });
   try {
@@ -305,197 +387,143 @@ async function guardarMetaEnFirebase(){
   } catch(e) {}
 }
 
-// Versión del esquema de miniaturas del índice. Subir este número fuerza una
-// reconstrucción automática del índice la próxima vez que un admin entre al
-// sitio (ver el chequeo de "indiceDesactualizado" más abajo, en inicializar()).
-const INDICE_VERSION = 2;
-
-// Según la cantidad de productos del catálogo, decide qué tan grande y con
-// qué presupuesto de bytes generar cada miniatura, para que el ÍNDICE
-// COMPLETO (que vive en UN SOLO documento de Firestore, límite real 1MB)
-// nunca supere un total seguro — pero sin sacrificar calidad de más cuando
-// el catálogo es chico o mediano.
-function calcularParametrosThumbnail(cantidadProductos){
-  const PRESUPUESTO_TOTAL = 800 * 1024; // ~800KB para el conjunto de miniaturas, con margen bajo el límite de 1MB
-  const n = Math.max(cantidadProductos, 1);
-  let presupuestoPorImagen = PRESUPUESTO_TOTAL / n;
-  // Clamp: ni miniaturas absurdamente pesadas con catálogos chicos,
-  // ni tan livianas que no se note la mejora con catálogos grandes.
-  presupuestoPorImagen = Math.min(Math.max(presupuestoPorImagen, 700), 9000);
-
-  let maxPx;
-  if(n <= 80)       maxPx = 130;
-  else if(n <= 150) maxPx = 105;
-  else if(n <= 300) maxPx = 85;
-  else if(n <= 600) maxPx = 65;
-  else              maxPx = 50;
-
-  return { maxPx, presupuestoPorImagen };
-}
-
-// Genera una miniatura en base64 a partir de la imagen ya comprimida del
-// producto, pensada solo para el índice de búsqueda. Prueba varias
-// calidades JPEG de mayor a menor y se queda con la más alta que entre en
-// el presupuesto de bytes calculado para el tamaño del catálogo actual.
-function generarThumbnail(base64, maxPx = 85, presupuestoBytes = 3500){
-  return new Promise(resolve => {
-    if(!base64){ resolve(''); return; }
-    const img = new Image();
-    img.onload = () => {
-      let w = img.width, h = img.height;
-      if(w >= h){ h = Math.round(h * maxPx / w) || 1; w = maxPx; }
-      else { w = Math.round(w * maxPx / h) || 1; h = maxPx; }
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-
-      const calidades = [0.82, 0.72, 0.62, 0.52, 0.42, 0.32, 0.22];
-      let mejor = canvas.toDataURL('image/jpeg', calidades[calidades.length - 1]);
-      for(const q of calidades){
-        const data = canvas.toDataURL('image/jpeg', q);
-        const bytesAprox = Math.round(data.length * 0.75); // tamaño real aprox del base64
-        if(bytesAprox <= presupuestoBytes){
-          mejor = data;
-          break;
-        }
-      }
-      resolve(mejor);
-    };
-    img.onerror = () => resolve('');
-    img.src = base64;
-  });
-}
-
-// Reconstruye el índice liviano {id,nombre,tipos,imgThumb,desc} de TODO el catálogo
-// y lo guarda dentro del doc de metadata. Solo se llama desde el admin
-// (al guardar/eliminar un producto), nunca en la carga normal del sitio,
-// así que no afecta las lecturas de los visitantes.
-// Arma la entrada liviana de índice para UN producto
-async function entradaIndice(p, cantidadProductos){
-  const total = cantidadProductos || indiceCompleto.length || productos.length || 1;
-  const { maxPx, presupuestoPorImagen } = calcularParametrosThumbnail(total);
-  // Miniatura ajustada al tamaño del catálogo (ver calcularParametrosThumbnail).
-  const imgThumb = await generarThumbnail(p.img, maxPx, presupuestoPorImagen);
-  return {
-    id: p.id,
-    nombre: p.nombre || '',
-    tipos: Array.isArray(p.tipos) ? p.tipos : (p.tipo ? [p.tipo] : []),
-    imgThumb,
-    desc: p.desc ? p.desc.substring(0, 80) : ''
-  };
-}
-
-// Agrega o actualiza UNA entrada en el índice en memoria (sin leer Firestore)
-async function upsertEnIndice(prod){
-  const entrada = await entradaIndice(prod, indiceCompleto.length || productos.length);
-  const i = indiceCompleto.findIndex(p => p.id === prod.id);
-  if(i >= 0) indiceCompleto[i] = entrada;
-  else indiceCompleto.push(entrada);
-}
-
-// Quita UNA entrada del índice en memoria (sin leer Firestore)
-function quitarDeIndice(prodId){
-  indiceCompleto = indiceCompleto.filter(p => p.id !== prodId);
-}
-
-// Reconstruye el índice completo LEYENDO toda la colección.
-// Se usa cuando el índice todavía no existe, o cuando existe pero es de una
-// versión vieja sin miniaturas (bootstrap / migración).
-// No se llama en cada guardado/eliminación — eso se maneja de forma incremental
-// con upsertEnIndice/quitarDeIndice para no sumar lecturas ni depender de una
-// query pesada cada vez que se edita un producto.
-async function reconstruirIndiceBusqueda(){
-  const snap = await PRODS_COL.get({ source: 'server' });
-  const total = snap.docs.length;
-  indiceCompleto = await Promise.all(
-    snap.docs.map(d => entradaIndice({ ...d.data(), id: d.id }, total))
-  );
-  return indiceCompleto;
-}
-
-// Guarda/actualiza UN producto en su propio documento
+// Guarda/actualiza UN producto (doc del item + _indice + _meta, atómico)
 async function guardarProductoEnFirebase(prod){
-  const docRef = prod.id
-    ? PRODS_COL.doc(prod.id)
-    : PRODS_COL.doc();                // nuevo ID automático
-  if(!prod.id) prod.id = docRef.id;   // guardar el ID en el objeto
-  await docRef.set(prod);
-
-  // Actualizar índice de búsqueda en memoria (incremental, sin lecturas extra)
-  await upsertEnIndice(prod);
-  const ts = Date.now();
-  await META_REF.set({ lastModified: ts, indice: indiceCompleto }, { merge: true });
-  try { localStorage.setItem('cache_ts', String(ts)); } catch(e) {}
+  if(!prod.id) prod.id = PRODS_COL.doc().id;
+  const ref = PRODS_COL.doc(prod.id);
+  await commitCambios([{ tipo: 'set', ref, data: productoParaIndice(prod) }]);
   return prod;
 }
 
 // Elimina UN producto de Firestore
 async function eliminarProductoEnFirebase(prodId){
-  await PRODS_COL.doc(prodId).delete();
-
-  // Actualizar índice de búsqueda en memoria (incremental, sin lecturas extra)
-  quitarDeIndice(prodId);
-  const ts = Date.now();
-  await META_REF.set({ lastModified: ts, indice: indiceCompleto }, { merge: true });
-  try { localStorage.setItem('cache_ts', String(ts)); } catch(e) {}
+  await commitCambios([{ tipo: 'delete', ref: PRODS_COL.doc(prodId) }]);
 }
 
-// Guarda TODO (batch): útil para restaurar o migrar desde formato legacy
-async function guardarEnFirebase(productosModificados){
-  try {
-    const batch = db.batch();
+// ── SINCRONIZACIÓN ADMIN ─────────────────────────────────
+// Al entrar como admin se relee la colección completa (fuente de verdad) y se
+// regenera _indice. Repara el índice después de una restauración desde backup
+// o de ediciones hechas a mano en la consola de Firebase.
+function iniciarSincronizacionAdmin(){
+  if(ADMIN_SYNC) return ADMIN_SYNC;
+  ADMIN_SYNC = (async () => {
+    await CARGA_INICIAL;
+    productos = await leerColeccionCompleta();
+    buildAllCarousels();
+    await commitCambios([]);
+    const pendientes = contarFotosBase64() + fotosBase64DePagina().length;
+    if(pendientes > 0){
+      mostrarToastError(`⚠ Hay ${pendientes} foto${pendientes !== 1 ? 's' : ''} en formato viejo.<br>Andá a ⚙ Herramientas → "Migrar fotos a Cloudinary".`, 10000);
+    }
+  })().catch(err => {
+    ADMIN_SYNC = null;
+    console.error('Error sincronizando admin:', err);
+    mostrarToastError('⚠ No se pudo sincronizar el catálogo. Revisá la conexión y recargá la página.', 8000);
+    throw err;
+  });
+  return ADMIN_SYNC;
+}
 
-    // 1. Metadata (merge:true para no pisar el campo `indice` en el medio)
-    batch.set(META_REF, {
-      categoriasOcultas,
-      categoriaOrden,
-      ordenCategorias,
-      productosOcultos
-    }, { merge: true });
+async function esperarAdminListo(){
+  if(!ADMIN_SYNC) iniciarSincronizacionAdmin();
+  await ADMIN_SYNC;
+}
 
-    // 2. Obtener IDs actuales en Firestore para detectar eliminados
-    const existentes = await PRODS_COL.get({ source: 'server' });
-    const idsEnFirestore = new Set(existentes.docs.map(d => d.id));
-    const idsActuales    = new Set(productos.map(p => p.id).filter(Boolean));
+function esBase64(src){ return typeof src === 'string' && src.startsWith('data:'); }
 
-    // Eliminar los que ya no están en memoria
-    existentes.docs.forEach(doc => {
-      if(!idsActuales.has(doc.id)) batch.delete(doc.ref);
-    });
+function contarFotosBase64(){
+  let n = 0;
+  productos.forEach(p => {
+    const lista = Array.isArray(p.imgs) && p.imgs.length ? p.imgs : [p.img];
+    n += lista.filter(esBase64).length;
+  });
+  return n;
+}
 
-    // Crear o actualizar SOLO los productos modificados (o todos si no se especifica),
-    // para no reenviar las imágenes base64 de productos que no cambiaron y así evitar
-    // superar los límites de tamaño de batch de Firestore.
-    const aGuardar = productosModificados || productos;
-    aGuardar.forEach(p => {
-      if(!p.id){
-        const ref = PRODS_COL.doc();
-        p.id = ref.id;
-        batch.set(ref, p);
-      } else {
-        batch.set(PRODS_COL.doc(p.id), p);
-      }
-    });
+// ════════════════════════════════════════════════════════
+//  CLOUDINARY — las fotos se suben ahí; en Firestore solo
+//  se guarda el link. cloudName/preset se cargan desde la
+//  página (admin) y viven en privado/cloudinary.
+// ════════════════════════════════════════════════════════
+let cldConfig = null;
 
-    await batch.commit();
-    const ts = Date.now();
-    // El índice de búsqueda se arma directo desde `productos` (ya está todo en memoria
-    // acá), sin necesidad de leer la colección de nuevo. Usamos entradaIndice() para
-    // generar la miniatura chica de cada uno (no la imagen completa).
-    const indice = await Promise.all(productos.map(p => entradaIndice(p, productos.length)));
-    indiceCompleto = indice;
-    await META_REF.set({ lastModified: ts, indice, indiceVersion: INDICE_VERSION }, { merge: true });
-    indiceVersion = INDICE_VERSION;
-    try {
-      // No se cachean productos — siempre se leen frescos desde Firestore
-      localStorage.setItem('cache_ts', String(ts));
-    } catch(e) {}
-    return true;
-  } catch(err) {
-    console.error('Error guardando en Firebase:', err);
-    mostrarToastError('⚠ Error al guardar. Mala conexión, límite excedido de imágenes o superposicion de pestañas.<br>Revise conexión a internet, cierre las demás pestañas y vuelva a iniciar sesión en modo administrador.', 20000);
-    return false;
+async function obtenerCloudinary(){
+  if(cldConfig) return cldConfig;
+  const snap = await CLOUDINARY_REF.get({ source: 'server' });
+  const d = snap.exists ? snap.data() : null;
+  if(d && d.cloudName && d.preset){
+    cldConfig = { cloudName: d.cloudName, preset: d.preset };
+    return cldConfig;
   }
+  return configurarCloudinary();
+}
+
+async function configurarCloudinary(){
+  const actual = cldConfig || {};
+  const cloudName = (prompt('Cloudinary — "Cloud name" (lo ves en el Dashboard de Cloudinary):', actual.cloudName || '') || '').trim();
+  if(!cloudName) throw new Error('Falta configurar Cloudinary (cloud name).');
+  const preset = (prompt('Cloudinary — nombre del "Upload preset" (modo Unsigned):', actual.preset || '') || '').trim();
+  if(!preset) throw new Error('Falta configurar Cloudinary (upload preset).');
+  await CLOUDINARY_REF.set({ cloudName, preset });
+  cldConfig = { cloudName, preset };
+  return cldConfig;
+}
+
+// archivo: File, Blob o dataURL base64 (Cloudinary acepta los tres como "file")
+async function subirImagenCloudinary(archivo){
+  const { cloudName, preset } = await obtenerCloudinary();
+  const fd = new FormData();
+  fd.append('file', archivo);
+  fd.append('upload_preset', preset);
+  const r = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/image/upload`, {
+    method: 'POST',
+    body: fd
+  });
+  const data = await r.json().catch(() => ({}));
+  if(!r.ok || !data.secure_url){
+    throw new Error('Cloudinary: ' + ((data.error && data.error.message) || ('HTTP ' + r.status)));
+  }
+  return data.secure_url;
+}
+
+// Sube SOLO las fotos base64 de la lista; las que ya son URL se conservan.
+async function subirFotosPendientes(lista, onProgreso){
+  const pendientes = lista.filter(esBase64).length;
+  let hechas = 0;
+  const out = [];
+  for(const src of lista){
+    if(esBase64(src)){
+      if(onProgreso) onProgreso(hechas + 1, pendientes);
+      out.push(await subirImagenCloudinary(src));
+      hechas++;
+    } else {
+      out.push(src);
+    }
+  }
+  return out;
+}
+
+// Inserta transformaciones de Cloudinary (tamaño/formato automático).
+// Con base64 u otras URLs devuelve el src sin tocar (compatibilidad).
+function cldUrl(src, transf){
+  if(typeof src !== 'string' || !src.includes('res.cloudinary.com') || !src.includes('/upload/')) return src;
+  return src.replace('/upload/', `/upload/${transf}/`);
+}
+const CLD_CARD  = 'f_auto,q_auto,c_limit,w_600';
+const CLD_MODAL = 'f_auto,q_auto,c_limit,w_1400';
+const CLD_THUMB = 'f_auto,q_auto,c_fill,w_160,h_160';
+const CLD_LOGO  = 'f_auto,q_auto,c_limit,w_800';
+
+// Escapa texto para insertarlo en HTML
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function desEscapar(s){
+  const t = document.createElement('textarea');
+  t.innerHTML = s || '';
+  return t.value;
 }
 
 // ════════════════════════════════════════════════════════
@@ -542,6 +570,7 @@ async function submitLogin(){
     document.getElementById('admin-bar').style.display = 'flex';
     posicionarNavYMarquee();
     buildAllCarousels(); // reconstruir cards con botones de admin
+    iniciarSincronizacionAdmin().catch(() => {});
   } catch {
     errorEl.textContent = 'Credenciales incorrectas. Intentá de nuevo.';
     btn.textContent = 'Ingresar';
@@ -609,28 +638,31 @@ async function inicializar(){
     } catch(err2){
       console.error('Error cargando Firebase:', err2);
       productos = productosDefault.map(p => ({...p}));
+      if(!productos.length){
+        mostrarErrorCarga();
+        resolverCargaInicial();
+        return;
+      }
     }
   }
 
   const loadingEl = document.getElementById('carrusel-loading');
   if (loadingEl) loadingEl.style.display = 'none';
   buildAllCarousels();
+  sincronizarCarritoConCatalogo();
+  resolverCargaInicial();
+}
 
-  // Generación automática del índice de búsqueda (una sola vez).
-  // Si sos admin y el índice todavía no existe en Firestore, o existe pero
-  // es de una versión de esquema vieja (ej: miniaturas de baja calidad de
-  // una versión anterior), se reconstruye solo en segundo plano — no hace
-  // falta editar productos a mano.
-  const indiceDesactualizado = indiceVersion < INDICE_VERSION;
-  if(ADMIN_MODE && (!indiceCompleto.length || indiceDesactualizado)){
-    reconstruirIndiceBusqueda()
-      .then(indice => META_REF.set({ indice, indiceVersion: INDICE_VERSION }, { merge: true }))
-      .then(() => {
-        indiceVersion = INDICE_VERSION;
-        console.log('Índice de búsqueda generado automáticamente (' + indiceCompleto.length + ' productos).');
-      })
-      .catch(err => console.warn('No se pudo generar el índice de búsqueda automáticamente:', err));
-  }
+// Si Firestore no respondió (sin conexión, cuota agotada, etc.), avisar en vez
+// de dejar la sección de productos vacía.
+function mostrarErrorCarga(){
+  const container = document.getElementById('carrousels-container');
+  if(!container) return;
+  container.innerHTML = `
+    <div class="carga-error">
+      <p>No pudimos cargar los productos en este momento.</p>
+      <button class="btn-primary" onclick="location.reload()">Reintentar</button>
+    </div>`;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -675,6 +707,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Agregamos la orden para que traiga los banners apenas entras a la página
   cargarMarqueeConfig();
+
+  // Carrito guardado de una visita anterior
+  cargarCarritoLocal();
 
   inicializar();
 });
@@ -772,10 +807,18 @@ function initHeroReplay(){
   heroObserver.observe(heroSection);
 }
 
+// En mobile la barra de direcciones dispara 'resize' al aparecer/ocultarse
+// (cambia solo el alto). Reconstruir solo si cambió el ANCHO, si no los
+// carruseles vuelven al principio solos mientras se scrollea.
 let resizeTimer;
+let ultimoAncho = window.innerWidth;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => buildAllCarousels(), 150);
+  resizeTimer = setTimeout(() => {
+    if(window.innerWidth === ultimoAncho) return;
+    ultimoAncho = window.innerWidth;
+    buildAllCarousels();
+  }, 150);
 });
 
 // ════════════════════════════════════════════════════════
@@ -1072,8 +1115,8 @@ function crearSeccionCarrusel(cat, catId, showDivider){
   const header = document.createElement('div');
   header.className = 'cat-section-header';
   header.innerHTML = cat === OFERTA_CAT
-    ? `<span class="section-label cat-label cat-label-ofertas">🏷 ${cat}</span>`
-    : `<span class="section-label cat-label">${cat}</span>`;
+    ? `<span class="section-label cat-label cat-label-ofertas">🏷 ${esc(cat)}</span>`
+    : `<span class="section-label cat-label">${esc(cat)}</span>`;
   section.appendChild(header);
 
   const wrapper = document.createElement('div');
@@ -1135,6 +1178,19 @@ function buildTrack(catId, prods){
       card.style.flex = `0 0 ${cardW}px`;
       track.appendChild(card);
     });
+  }
+
+  // Si el usuario desliza con el dedo/trackpad, sincronizar la posición para
+  // que las flechas sigan desde donde quedó (antes saltaban a la posición vieja).
+  const outer = track.closest('.carrusel-track-outer');
+  if(outer){
+    let scrollTimer;
+    outer.onscroll = () => {
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        posCarrusel[catId] = Math.round(outer.scrollLeft / pasoCarrusel());
+      }, 80);
+    };
   }
 
   const btnPrev = document.getElementById('btn-prev-' + catId);
@@ -1209,20 +1265,20 @@ function crearCard(p, esClonado){
   const enOferta = esProductoEnOferta(p);
   card.className = 'producto-card' + (estaOculto ? ' producto-oculto' : '') + (enOferta ? ' producto-oferta' : '');
   const precioHTML = enOferta
-    ? `<div class="prod-precio-row"><span class="prod-precio-tachado">${p.precio}</span><span class="prod-precio-oferta">${p.precioOferta}</span></div>`
-    : (p.precio ? `<div class="prod-precio-row"><span class="prod-precio-normal">${p.precio}</span></div>` : '');
+    ? `<div class="prod-precio-row"><span class="prod-precio-tachado">${esc(p.precio)}</span><span class="prod-precio-oferta">${esc(p.precioOferta)}</span></div>`
+    : (p.precio ? `<div class="prod-precio-row"><span class="prod-precio-normal">${esc(p.precio)}</span></div>` : '');
   card.innerHTML = `
     ${enOferta ? '<div class="oferta-ribbon">Oferta</div>' : ''}
     <div class="prod-img-placeholder">
-      <img src="${p.img}" alt="${p.nombre}">
+      <img src="${esc(cldUrl(p.img, CLD_CARD))}" alt="${esc(p.nombre)}" loading="lazy" decoding="async">
     </div>
     <div class="prod-info">
-      <div class="prod-tipo">${Array.isArray(p.tipos) ? p.tipos[0] : p.tipo}</div>
-      <div class="prod-name">${p.nombre}</div>
+      <div class="prod-tipo">${esc(Array.isArray(p.tipos) ? p.tipos[0] : p.tipo)}</div>
+      <div class="prod-name">${esc(p.nombre)}</div>
       ${precioHTML}
     </div>
     <div class="prod-overlay">
-      <h3>${p.nombre}</h3>
+      <h3>${esc(p.nombre)}</h3>
       <div class="ver-mas">Ver más</div>
     </div>`;
 
@@ -1312,13 +1368,12 @@ function moverCarrusel(catId, dir){
 
   const track = document.getElementById('carrusel-track-' + catId);
   const outer = track?.closest('.carrusel-track-outer');
-  if(esMobile()){
-    const cardW  = getCardWidth();
-    const grupoW = getGrupoMobileWidth();
-    if(outer) outer.scrollLeft = posCarrusel[catId] * (grupoW + 20);
-  } else {
-    if(outer) outer.scrollLeft = posCarrusel[catId] * (getCardWidth() + 20);
-  }
+  if(outer) outer.scrollLeft = posCarrusel[catId] * pasoCarrusel();
+}
+
+// Distancia en px entre un "paso" del carrusel y el siguiente (card o grupo 2x2 + gap)
+function pasoCarrusel(){
+  return esMobile() ? getGrupoMobileWidth() + 20 : getCardWidth() + 20;
 }
 
 // ════════════════════════════════════════════════════════
@@ -1332,8 +1387,8 @@ function openModal(p){
   const modalPrecioEl = document.getElementById('modal-precio');
   if(esProductoEnOferta(p)){
     modalPrecioEl.innerHTML = `<span class="oferta-ribbon-modal">Oferta</span>
-      <span class="modal-precio-tachado">${p.precio}</span>
-      <span class="modal-precio-oferta">${p.precioOferta}</span>`;
+      <span class="modal-precio-tachado">${esc(p.precio)}</span>
+      <span class="modal-precio-oferta">${esc(p.precioOferta)}</span>`;
   } else {
     modalPrecioEl.textContent = p.precio ? p.precio : '';
   }
@@ -1343,10 +1398,10 @@ function openModal(p){
   const imgs = p.imgs && p.imgs.length > 0 ? p.imgs : [p.img];
   
   if(imgs.length <= 1){
-    imgContainer.innerHTML = `<img src="${imgs[0]}" style="width:100%;height:100%;object-fit:cover;">`;
+    imgContainer.innerHTML = `<img src="${esc(cldUrl(imgs[0], CLD_MODAL))}" alt="${esc(p.nombre)}" style="width:100%;height:100%;object-fit:cover;">`;
   } else {
     let dotsHTML = imgs.map((_,i) => `<div class="modal-dot${i===0?' active':''}" onclick="modalCarouselGo(${i})"></div>`).join('');
-    let imgsHTML = imgs.map((src,i) => `<img src="${src}" class="${i===0?'active':''}" alt="">`).join('');
+    let imgsHTML = imgs.map((src,i) => `<img src="${esc(cldUrl(src, CLD_MODAL))}" class="${i===0?'active':''}" alt="">`).join('');
     imgContainer.innerHTML = `
       <div class="modal-img-carousel" id="modal-carousel">
         ${imgsHTML}
@@ -1606,11 +1661,13 @@ function scrollToSection(id){
 // ════════════════════════════════════════════════════════
 async function eliminarProducto(p){
   if(!confirm(`¿Eliminar "${p.nombre}" del catálogo?`)) return;
-  const idx = productos.indexOf(p);
-  if(idx > -1) productos.splice(idx, 1);
-  buildAllCarousels();
   mostrarToast('Guardando…');
   try {
+    await esperarAdminListo();
+    // Por id (no por referencia): tras la sincronización admin los objetos se recrean
+    productos = productos.filter(x => x.id !== p.id);
+    productosOcultos = productosOcultos.filter(id => id !== p.id);
+    buildAllCarousels();
     if(p.id) await eliminarProductoEnFirebase(p.id);
     await guardarMetaEnFirebase();
     mostrarToast('Producto eliminado ✓');
@@ -1662,6 +1719,7 @@ document.querySelectorAll(`.producto-card[data-prod-id="${p.id}"]`).forEach(c =>
 
   mostrarToast('Guardando…');
   try {
+    await esperarAdminListo();
     await guardarMetaEnFirebase();
     mostrarToast(ahoraOculto ? 'Producto ocultado ✓' : 'Producto visible ✓');
   } catch(err) {
@@ -1742,7 +1800,7 @@ function renderFotosGrid(){
     wrap.className = 'foto-thumb-wrap' + (i === portadaIdx ? ' is-portada' : '');
     wrap.title = 'Clic para marcar como portada';
     wrap.innerHTML = `
-      <img src="${src}" class="${i === portadaIdx ? 'portada-activa' : ''}" alt="">
+      <img src="${esc(cldUrl(src, CLD_THUMB))}" class="${i === portadaIdx ? 'portada-activa' : ''}" alt="">
       <button class="foto-thumb-remove" title="Eliminar foto">×</button>
       ${i === portadaIdx ? '<span class="portada-badge">Portada</span>' : ''}`;
     wrap.querySelector('img').addEventListener('click', () => { portadaIdx = i; renderFotosGrid(); });
@@ -1764,14 +1822,16 @@ function comprimirImagen(file, callback){
   reader.onload = ev => {
     const img = new Image();
     img.onload = () => {
-      const MAX = 900;
+      // Ahora la foto va a Cloudinary (no a Firestore): se puede subir con más calidad.
+      // Cloudinary después entrega versiones livianas según el tamaño de pantalla.
+      const MAX = 1600;
       let w = img.width, h = img.height;
       if(w > MAX){ h = Math.round(h * MAX / w); w = MAX; }
       if(h > MAX){ w = Math.round(w * MAX / h); h = MAX; }
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      callback(canvas.toDataURL('image/jpeg', 0.78));
+      callback(canvas.toDataURL('image/jpeg', 0.85));
     };
     img.src = ev.target.result;
   };
@@ -1784,7 +1844,7 @@ function comprimirImagenPNG(file, callback){
   reader.onload = ev => {
     const img = new Image();
     img.onload = () => {
-      const MAX = 600;
+      const MAX = 1000;
       let w = img.width, h = img.height;
       if(w > MAX){ h = Math.round(h * MAX / w); w = MAX; }
       if(h > MAX){ w = Math.round(w * MAX / h); h = MAX; }
@@ -1857,7 +1917,9 @@ async function guardarProducto(){
 
   // Nueva categoría escrita a mano
   const nuevaCatInput = document.getElementById('a-tipo-nueva').value.trim();
-  if(nuevaCatInput && nuevaCatInput !== OFERTA_CAT) tiposSeleccionados.push(nuevaCatInput);
+  if(nuevaCatInput && nuevaCatInput !== OFERTA_CAT && !tiposSeleccionados.includes(nuevaCatInput)){
+    tiposSeleccionados.push(nuevaCatInput);
+  }
 
   if(!nombre)    { alert('Por favor ingresá el nombre del producto.'); return; }
   if(!tiposSeleccionados.length){ alert('Por favor seleccioná al menos una categoría.'); return; }
@@ -1882,56 +1944,67 @@ async function guardarProducto(){
   if(esOferta) tiposFinal.push(OFERTA_CAT);
 
   const reordenadas = [fotosBase64[portadaIdx], ...fotosBase64.filter((_,i)=>i!==portadaIdx)];
-  const imgPortada = reordenadas[0];
 
-  if(productoEditando){
-    productoEditando.nombre = nombre;
-    productoEditando.tipos  = tiposFinal;
-    productoEditando.tipo   = tiposFinal[0]; // compatibilidad legacy
-    productoEditando.desc   = desc;
-    productoEditando.precio = precioOriginal; // siempre el precio original (se tacha si está en oferta)
-    productoEditando.precioOriginal = esOferta ? precioOriginal : '';
-    productoEditando.img    = imgPortada;
-    productoEditando.imgs   = reordenadas;
-    productoEditando.enOferta = esOferta;
-    if(esOferta) productoEditando.precioOferta = precioOferta; // precio con descuento (se destaca)
-    else {
-      delete productoEditando.precioOferta;
-      delete productoEditando.precioOriginal;
+  const btnGuardar = document.querySelector('#admin-modal .btn-guardar');
+  if(btnGuardar){ btnGuardar.disabled = true; btnGuardar.textContent = 'Guardando…'; }
+  const restaurarBoton = () => {
+    if(btnGuardar){ btnGuardar.disabled = false; btnGuardar.textContent = 'Guardar producto'; }
+  };
+
+  try {
+    await esperarAdminListo();
+
+    // 1) Subir a Cloudinary las fotos nuevas ANTES de tocar nada en memoria.
+    //    Si falla la subida, no se modifica el catálogo.
+    const urls = await subirFotosPendientes(reordenadas, (n, total) => {
+      mostrarToast(`Subiendo foto ${n} de ${total}…`);
+    });
+
+    // 2) Aplicar los cambios en memoria (buscando por id, no por referencia)
+    let prod = productoEditando ? productos.find(x => x.id === productoEditando.id) : null;
+    if(!prod){
+      prod = {};
+      productos.push(prod);
     }
-  } else {
-    productos.push({
+    Object.assign(prod, {
       nombre,
-      precio: precioOriginal, // siempre el precio original (se tacha si está en oferta)
-      tipo: tiposFinal[0],
+      precio: precioOriginal,      // siempre el precio original (se tacha si está en oferta)
+      tipo: tiposFinal[0],         // compatibilidad legacy
       tipos: tiposFinal,
       desc,
-      img: imgPortada,
-      imgs: reordenadas,
-      enOferta: esOferta,
-      ...(esOferta ? { precioOferta: precioOferta } : {}) // precio con descuento (se destaca)
+      img: urls[0],
+      imgs: urls,
+      enOferta: esOferta
     });
-  }
+    if(esOferta){
+      prod.precioOferta   = precioOferta;   // precio con descuento (se destaca)
+      prod.precioOriginal = precioOriginal;
+    } else {
+      delete prod.precioOferta;
+      delete prod.precioOriginal;
+    }
 
-  buildAllCarousels();
-  document.getElementById('admin-modal').classList.remove('active');
-  mostrarToast('Guardando…');
-  try {
-    // Guardar solo el producto que cambió (no toda la lista)
-    const prodTarget = productoEditando || productos[productos.length - 1];
-    await guardarProductoEnFirebase(prodTarget);
+    // 3) Guardar (item + índice + meta)
+    mostrarToast('Guardando…');
+    await guardarProductoEnFirebase(prod);
     await guardarMetaEnFirebase();
+
+    buildAllCarousels();
+    document.getElementById('admin-modal').classList.remove('active');
+    productoEditando = null;
+    fotosBase64 = [];
+    portadaIdx = 0;
+    renderFotosGrid();
+    document.querySelector('.admin-modal h2').textContent = 'Nuevo producto';
     mostrarToast('Producto guardado ✓');
     setTimeout(() => scrollToSection('productos'), 300);
   } catch(err) {
     console.error('Error guardando producto:', err);
-    mostrarToastError('⚠ Error al guardar. Mala conexión, límite excedido de imágenes o superposicion de pestañas.<br>Revise conexión a internet, cierre las demás pestañas y vuelva a iniciar sesión en modo administrador.', 20000);
+    // El modal queda abierto con los datos cargados para poder reintentar
+    mostrarToastError('⚠ No se pudo guardar el producto.<br>' + esc(err && err.message ? err.message : 'Revisá la conexión a internet.') , 12000);
+  } finally {
+    restaurarBoton();
   }
-  productoEditando = null;
-  fotosBase64 = [];
-  portadaIdx = 0;
-  renderFotosGrid();
-  document.querySelector('.admin-modal h2').textContent = 'Nuevo producto';
 }
 
 function abrirModalEditar(p){
@@ -1951,22 +2024,6 @@ function abrirModalEditar(p){
   document.getElementById('a-foto-texto').textContent = `${fotosBase64.length} imagen${fotosBase64.length!==1?'es':''} cargada${fotosBase64.length!==1?'s':''}`;
   document.querySelector('.admin-modal h2').textContent = 'Editar producto';
   document.getElementById('admin-modal').classList.add('active');
-}
-
-// ════════════════════════════════════════════════════════
-//  ADMIN — Restaurar originales
-// ════════════════════════════════════════════════════════
-async function resetearProductos(){
-  if(!confirm('¿Restaurar el catálogo original? Se perderán todos los cambios.')) return;
-  productos = productosDefault.map(p => ({...p}));
-  categoriasOcultas = [];
-  productosOcultos = [];
-  buildAllCarousels();
-  mostrarToast('Guardando…');
-  const exito = await guardarEnFirebase();
-  if(exito) {
-    mostrarToast('Catálogo restaurado ✓');
-  }
 }
 
 // ════════════════════════════════════════════════════════
@@ -2025,10 +2082,10 @@ function renderizarListaReorden(){
     li.innerHTML = `
       <span class="reorder-handle">⠿</span>
       <span class="reorder-num">${i + 1}</span>
-      <img class="reorder-thumb" src="${p.img}" alt="${p.nombre}">
+      <img class="reorder-thumb" src="${esc(cldUrl(p.img, CLD_THUMB))}" alt="${esc(p.nombre)}" loading="lazy">
       <div class="reorder-info">
-        <div class="reorder-name">${p.nombre}</div>
-        <div class="reorder-tipo">${Array.isArray(p.tipos) ? p.tipos.join(', ') : p.tipo}</div>
+        <div class="reorder-name">${esc(p.nombre)}</div>
+        <div class="reorder-tipo">${esc(Array.isArray(p.tipos) ? p.tipos.join(', ') : p.tipo)}</div>
       </div>`;
 
     li.addEventListener('dragstart', e => {
@@ -2060,6 +2117,7 @@ function renderizarListaReorden(){
 }
 
 async function guardarReorden(){
+  try { await esperarAdminListo(); } catch(e) { return; }
 
   ordenCategorias[reorderCatActual] =
     ordenTemporal.map(p => p.id);
@@ -2113,17 +2171,19 @@ function renderCatToggles(){
       <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
         <span class="cat-drag-handle" title="Arrastrá para reordenar">⠿</span>
         <div>
-          <div class="cat-toggle-name">${cat}</div>
+          <div class="cat-toggle-name">${esc(cat)}</div>
           <div class="cat-toggle-count">${count} producto${count !== 1 ? 's' : ''}</div>
         </div>
       </div>
       <div class="cat-toggle-actions">
-        <button class="btn-cat-delete" title="Eliminar categoría y sus productos" onclick="eliminarCategoria('${cat.replace(/'/g,"\\'")}')">×</button>
+        <button class="btn-cat-delete" title="Eliminar categoría y sus productos">×</button>
         <label class="toggle-switch">
-          <input type="checkbox" data-cat="${cat}" ${visible ? 'checked' : ''}>
+          <input type="checkbox" data-cat="${esc(cat)}" ${visible ? 'checked' : ''}>
           <span class="toggle-slider"></span>
         </label>
       </div>`;
+
+    item.querySelector('.btn-cat-delete').addEventListener('click', () => eliminarCategoria(cat));
 
     item.addEventListener('dragstart', e => {
       catDragSrc = idx;
@@ -2156,6 +2216,7 @@ function renderCatToggles(){
 }
 
 async function guardarCategorias(){
+  try { await esperarAdminListo(); } catch(e) { return; }
   const checkboxes = document.querySelectorAll('#cat-toggle-list input[type=checkbox]');
   categoriasOcultas = [];
   checkboxes.forEach(cb => {
@@ -2174,45 +2235,57 @@ async function guardarCategorias(){
 }
 
 async function eliminarCategoria(cat){
-  const count = productos.filter(p => p.tipo === cat).length;
-  const msg = count > 0
-    ? `¿Eliminar la categoría "${cat}" y sus ${count} producto${count !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`
-    : `¿Eliminar la categoría "${cat}"?`;
+  const tiposDe = p => Array.isArray(p.tipos) ? p.tipos : (p.tipo ? [p.tipo] : []);
+  // Se borran los productos cuya ÚNICA categoría es esta; a los que tienen
+  // varias solo se les quita esta categoría.
+  const aBorrar     = productos.filter(p => { const l = tiposDe(p); return l.includes(cat) && l.length <= 1; });
+  const aActualizar = productos.filter(p => { const l = tiposDe(p); return l.includes(cat) && l.length > 1; });
+
+  const partes = [];
+  if(aBorrar.length) partes.push(`se eliminarán ${aBorrar.length} producto${aBorrar.length !== 1 ? 's' : ''} que solo están en esta categoría`);
+  if(aActualizar.length) partes.push(`${aActualizar.length} producto${aActualizar.length !== 1 ? 's' : ''} con otras categorías se conservan`);
+  const msg = `¿Eliminar la categoría "${cat}"?` + (partes.length ? `
+
+${partes.join(' y ')}.
+Esta acción no se puede deshacer.` : '');
   if(!confirm(msg)) return;
 
-  // Productos que se eliminan por completo (tenían solo esta categoría)
-  const eliminados = productos.filter(p => {
-    const lista = Array.isArray(p.tipos) ? p.tipos : [p.tipo];
-    return lista.includes(cat) && lista.length <= 1;
-  });
-  // Productos que se modifican (pierden esta categoría pero conservan otras)
-  const modificados = [];
-
-  productos = productos.filter(p => {
-    const lista = Array.isArray(p.tipos) ? p.tipos : [p.tipo];
-    return !lista.includes(cat) || lista.length > 1;
-  }).map(p => {
-    if(Array.isArray(p.tipos) && p.tipos.includes(cat)){
-      const nuevos = p.tipos.filter(c => c !== cat);
-      const actualizado = { ...p, tipos: nuevos, tipo: nuevos[0] };
-      modificados.push(actualizado);
-      return actualizado;
-    }
-    return p;
-  });
-  categoriasOcultas = categoriasOcultas.filter(c => c !== cat);
-  renderCatToggles();
-  buildAllCarousels();
   mostrarToast('Guardando…');
   try {
-    // Solo se reenvían al batch los productos que cambiaron (más los eliminados,
-    // que ya no están en `productos` y se limpian por comparación de IDs). Esto evita
-    // reenviar las imágenes base64 de todos los demás productos sin cambios.
-    const exito = await guardarEnFirebase(modificados);
-    if(exito) mostrarToast(`Categoría eliminada ✓`);
+    await esperarAdminListo();
+    // Recalcular sobre el catálogo sincronizado (por si cambió al sincronizar)
+    const idsBorrar = new Set(productos.filter(p => { const l = tiposDe(p); return l.includes(cat) && l.length <= 1; }).map(p => p.id));
+    const ops = [];
+    productos = productos.filter(p => {
+      if(idsBorrar.has(p.id)){
+        ops.push({ tipo: 'delete', ref: PRODS_COL.doc(p.id) });
+        return false;
+      }
+      return true;
+    });
+    productos.forEach(p => {
+      const l = tiposDe(p);
+      if(!l.includes(cat)) return;
+      p.tipos = l.filter(c => c !== cat);
+      p.tipo  = p.tipos[0];
+      if(cat === OFERTA_CAT){ p.enOferta = false; delete p.precioOferta; delete p.precioOriginal; }
+      ops.push({ tipo: 'set', ref: PRODS_COL.doc(p.id), data: productoParaIndice(p) });
+    });
+
+    // Limpiar todas las referencias a la categoría y a los productos borrados
+    categoriasOcultas = categoriasOcultas.filter(c => c !== cat);
+    categoriaOrden    = categoriaOrden.filter(c => c !== cat);
+    delete ordenCategorias[cat];
+    productosOcultos  = productosOcultos.filter(id => !idsBorrar.has(id));
+
+    renderCatToggles();
+    buildAllCarousels();
+    await commitCambios(ops);
+    await guardarMetaEnFirebase();
+    mostrarToast('Categoría eliminada ✓');
   } catch(err) {
     console.error('Error eliminando categoría:', err);
-    mostrarToastError('⚠ Error al eliminar. Revisá la conexión, recargar la página.', 7000);
+    mostrarToastError('⚠ Error al eliminar. Revisá la conexión y recargá la página.', 7000);
   }
 }
 
@@ -2290,24 +2363,40 @@ function abrirModalEditarPagina(){
   if(heroLogoPreview) heroLogoPreview.style.display = 'none';
   if(C._heroLogoImg && heroLogoActual){
     heroLogoActual.style.display = 'block';
-    document.getElementById('ep-hero-logo-actual-img').src = C._heroLogoImg;
+    document.getElementById('ep-hero-logo-actual-img').src = cldUrl(C._heroLogoImg, CLD_LOGO);
     document.getElementById('ep-hero-logo-texto').textContent = 'Clic para cambiar la imagen del título';
   } else if(heroLogoActual){
     heroLogoActual.style.display = 'none';
     document.getElementById('ep-hero-logo-texto').textContent = 'Hacé clic para subir la imagen del título';
   }
+
+  // ── Nav logo image ────────────────────────────────
+  navLogoImgPendiente = null;
+  const navLogoPreview = document.getElementById('ep-nav-logo-preview');
+  const navLogoActual  = document.getElementById('ep-nav-logo-actual');
+  if(navLogoPreview) navLogoPreview.style.display = 'none';
+  const navActualSrc = C._navLogoImg || C.navLogoImgDefault;
+  if(navActualSrc && navLogoActual){
+    navLogoActual.style.display = 'block';
+    document.getElementById('ep-nav-logo-actual-img').src = cldUrl(navActualSrc, CLD_LOGO);
+    document.getElementById('ep-nav-logo-texto').textContent = 'Clic para cambiar la imagen del NAV';
+  } else if(navLogoActual){
+    navLogoActual.style.display = 'none';
+    document.getElementById('ep-nav-logo-texto').textContent = 'Hacé clic para subir la imagen del NAV';
+  }
+
   // Rellenar campos Hero
   document.getElementById('ep-rubro').value          = C.rubro || '';
   document.getElementById('ep-ubicacion').value      = C.ubicacion || '';
   // Convertir <br> en salto para textarea
-  document.getElementById('ep-hero-subtitulo').value = (C.heroSubtitulo || '').replace(/<br\s*\/?>/gi, '\n');
+  document.getElementById('ep-hero-subtitulo').value = desEscapar((C.heroSubtitulo || '').replace(/<br\s*\/?>/gi, '\n'));
 
   // Imagen nosotros
   nosotrosImgPendiente = null;
   const preview = document.getElementById('ep-nosotros-img-preview');
   const thumb   = document.getElementById('ep-nosotros-img-thumb');
   if(C._nosotrosImg){
-    thumb.src = C._nosotrosImg;
+    thumb.src = cldUrl(C._nosotrosImg, CLD_LOGO);
     preview.style.display = 'block';
     document.getElementById('ep-nosotros-img-texto').textContent = 'Imagen cargada — clic para cambiar';
   } else {
@@ -2320,13 +2409,11 @@ function abrirModalEditarPagina(){
   document.getElementById('ep-nos-titulo').value   = C.nosotros.titulo || '';
   const ps = C.nosotros.parrafos || ['','',''];
   // Strip tags for editing
-  document.getElementById('ep-nos-p1').value = (ps[0]||'').replace(/<[^>]+>/g,'');
-  document.getElementById('ep-nos-p2').value = (ps[1]||'').replace(/<[^>]+>/g,'');
-  document.getElementById('ep-nos-p3').value = (ps[2]||'').replace(/<[^>]+>/g,'');
-  
+  document.getElementById('ep-nos-p1').value = desEscapar((ps[0]||'').replace(/<[^>]+>/g,''));
+  document.getElementById('ep-nos-p2').value = desEscapar((ps[1]||'').replace(/<[^>]+>/g,''));
+  document.getElementById('ep-nos-p3').value = desEscapar((ps[2]||'').replace(/<[^>]+>/g,''));
 
   document.getElementById('edit-nosotros-slogan').value = C.nosotros.slogan || '';
-
 
   const stats = C.nosotros.stats || [{num:'',label:''},{num:'',label:''}];
   document.getElementById('ep-stat1-num').value   = (stats[0]||{}).num   || '';
@@ -2376,63 +2463,60 @@ function cargarImagenNosotros(e){
 
 async function guardarEditarPagina(){
   const C = SITE_CONFIG;
+  const btnGuardar = document.querySelector('#edit-pagina-modal .btn-guardar');
+  if(btnGuardar){ btnGuardar.disabled = true; btnGuardar.textContent = 'Guardando…'; }
 
-  // ── Leer valores ──────────────────────────────────────
-  C.rubro      = document.getElementById('ep-rubro').value.trim();
-  C.ubicacion  = document.getElementById('ep-ubicacion').value.trim();
-  // Textarea usa \n, HTML usa <br>
-  C.heroSubtitulo = document.getElementById('ep-hero-subtitulo').value.trim().replace(/\n/g,'<br>');
-
-  C.nosotros.label  = document.getElementById('ep-nos-label').value.trim();
-  C.nosotros.titulo = document.getElementById('ep-nos-titulo').value.trim();
-  C.nosotros.parrafos = [
-    document.getElementById('ep-nos-p1').value.trim(),
-    document.getElementById('ep-nos-p2').value.trim(),
-    document.getElementById('ep-nos-p3').value.trim()
-  ].filter(p => p !== '');
-  C.nosotros.slogan = document.getElementById('edit-nosotros-slogan').value.trim();
-  C.nosotros.stats = [
-    { num: document.getElementById('ep-stat1-num').value.trim(), label: document.getElementById('ep-stat1-label').value.trim() },
-    { num: document.getElementById('ep-stat2-num').value.trim(), label: document.getElementById('ep-stat2-label').value.trim() }
-  ];
-
-  C.whatsapp  = document.getElementById('ep-whatsapp').value.trim().replace(/\D/g,'');
-  C.instagram = document.getElementById('ep-instagram').value.trim().replace(/^@/,'');
-  C.contacto.waDisplay       = document.getElementById('ep-wa-display').value.trim();
-  C.contacto.waTexto         = document.getElementById('ep-wa-texto').value.trim();
-  C.contacto.waTextoProducto = document.getElementById('ep-wa-texto-producto').value.trim();
-  C.contacto.label           = document.getElementById('ep-contacto-label').value.trim();
-  C.contacto.titulo          = document.getElementById('ep-contacto-titulo').value.trim();
-  C.contacto.ctaTitulo       = document.getElementById('ep-cta-titulo').value.trim();
-  C.contacto.ctaParrafo      = document.getElementById('ep-cta-parrafo').value.trim();
-  C.contacto.ctaBoton        = document.getElementById('ep-cta-boton').value.trim();
-
-  if(nosotrosImgPendiente){
-    C._nosotrosImg = nosotrosImgPendiente;
-  }
-  if(heroLogoImgPendiente){
-    C._heroLogoImg = heroLogoImgPendiente;
-  }
-
-  // ── Aplicar en vivo a la página ────────────────────────
-  applyConfig();
-  // Imagen nosotros (si se cambió)
-  if(C._nosotrosImg){
-    const imgEl = document.querySelector('.about-img-placeholder img');
-    if(imgEl) imgEl.src = C._nosotrosImg;
-  }
-
-  document.getElementById('edit-pagina-modal').classList.remove('active');
-  mostrarToast('Guardando…');
-
-  if(navLogoImgPendiente){
-    C._navLogoImg = navLogoImgPendiente;
-  }
-
-  // ── Persistir en Firebase ──────────────────────────────
   try {
+    // ── 1) Subir primero las imágenes nuevas. Si falla, no se guarda nada ──
+    const pendientes = [
+      ['nosotros', nosotrosImgPendiente],
+      ['hero',     heroLogoImgPendiente],
+      ['nav',      navLogoImgPendiente]
+    ].filter(([, v]) => v);
+    const subidas = {};
+    for(let i = 0; i < pendientes.length; i++){
+      mostrarToast(`Subiendo imagen ${i + 1} de ${pendientes.length}…`);
+      subidas[pendientes[i][0]] = await subirImagenCloudinary(pendientes[i][1]);
+    }
+
+    // ── 2) Leer valores ──────────────────────────────────
+    C.rubro      = document.getElementById('ep-rubro').value.trim();
+    C.ubicacion  = document.getElementById('ep-ubicacion').value.trim();
+    // Textarea usa \n, HTML usa <br>. Se escapa el texto (se inserta con innerHTML).
+    C.heroSubtitulo = esc(document.getElementById('ep-hero-subtitulo').value.trim()).replace(/\n/g,'<br>');
+
+    C.nosotros.label  = document.getElementById('ep-nos-label').value.trim();
+    C.nosotros.titulo = document.getElementById('ep-nos-titulo').value.trim();
+    C.nosotros.parrafos = [
+      document.getElementById('ep-nos-p1').value.trim(),
+      document.getElementById('ep-nos-p2').value.trim(),
+      document.getElementById('ep-nos-p3').value.trim()
+    ].filter(p => p !== '').map(esc);
+    C.nosotros.slogan = document.getElementById('edit-nosotros-slogan').value.trim();
+    C.nosotros.stats = [
+      { num: document.getElementById('ep-stat1-num').value.trim(), label: document.getElementById('ep-stat1-label').value.trim() },
+      { num: document.getElementById('ep-stat2-num').value.trim(), label: document.getElementById('ep-stat2-label').value.trim() }
+    ];
+
+    C.whatsapp  = document.getElementById('ep-whatsapp').value.trim().replace(/\D/g,'');
+    C.instagram = document.getElementById('ep-instagram').value.trim().replace(/^@/,'');
+    C.contacto.waDisplay       = document.getElementById('ep-wa-display').value.trim();
+    C.contacto.waTexto         = document.getElementById('ep-wa-texto').value.trim();
+    C.contacto.waTextoProducto = document.getElementById('ep-wa-texto-producto').value.trim();
+    C.contacto.label           = document.getElementById('ep-contacto-label').value.trim();
+    C.contacto.titulo          = document.getElementById('ep-contacto-titulo').value.trim();
+    C.contacto.ctaTitulo       = document.getElementById('ep-cta-titulo').value.trim();
+    C.contacto.ctaParrafo      = document.getElementById('ep-cta-parrafo').value.trim();
+    C.contacto.ctaBoton        = document.getElementById('ep-cta-boton').value.trim();
+
+    if(subidas.nosotros) C._nosotrosImg = subidas.nosotros;
+    if(subidas.hero)     C._heroLogoImg = subidas.hero;
+    if(subidas.nav)      C._navLogoImg  = subidas.nav;
+
+    // ── 3) Persistir en Firebase ──────────────────────────
+    mostrarToast('Guardando…');
     const ts = Date.now();
-    await CONFIG_REF.set({
+    const data = {
       rubro:        C.rubro,
       ubicacion:    C.ubicacion,
       heroSubtitulo:C.heroSubtitulo,
@@ -2442,15 +2526,26 @@ async function guardarEditarPagina(){
       contacto:     C.contacto,
       nosotrosImg:  C._nosotrosImg || null,
       heroLogoImg:  C._heroLogoImg || null,
-      navLogoImg: C._navLogoImg || null
-    });
+      navLogoImg:   C._navLogoImg  || null
+    };
+    await CONFIG_REF.set(data);
     // Invalidar caché de otros dispositivos
     await META_REF.set({ lastModified: ts }, { merge: true });
-    try { localStorage.setItem('cache_ts', String(ts)); } catch(e) {}
+    try {
+      localStorage.setItem('cache_ts', String(ts));
+      localStorage.setItem('config_cache', JSON.stringify(data));
+    } catch(e) {}
+
+    // ── 4) Aplicar en vivo a la página (incluye logos e imagen de Nosotros) ──
+    applyConfig();
+    nosotrosImgPendiente = heroLogoImgPendiente = navLogoImgPendiente = null;
+    document.getElementById('edit-pagina-modal').classList.remove('active');
     mostrarToast('Cambios guardados ✓');
   } catch(err){
     console.error('Error guardando configEditable:', err);
-    mostrarToast('⚠ Error al guardar. Revisá la conexión, recargar la página.');
+    mostrarToastError('⚠ No se pudieron guardar los cambios.<br>' + esc(err && err.message ? err.message : 'Revisá la conexión.'), 10000);
+  } finally {
+    if(btnGuardar){ btnGuardar.disabled = false; btnGuardar.textContent = 'Guardar cambios'; }
   }
 }
 
@@ -2556,12 +2651,12 @@ function ejecutarBusqueda(query){
       const cats = Array.isArray(p.tipos) ? p.tipos.join(' · ') : (p.tipo || '');
       card.innerHTML = `
         <div class="search-card-img">
-          <img src="${p.img}" alt="${p.nombre}">
+          <img src="${esc(cldUrl(p.img, CLD_THUMB))}" alt="${esc(p.nombre)}" loading="lazy">
         </div>
         <div class="search-card-info">
-          <div class="search-card-cat">${cats}</div>
-          <div class="search-card-name">${p.nombre}</div>
-          <div class="search-card-desc">${p.desc ? p.desc.substring(0,80)+'…' : ''}</div>
+          <div class="search-card-cat">${esc(cats)}</div>
+          <div class="search-card-name">${esc(p.nombre)}</div>
+          <div class="search-card-desc">${p.desc ? esc(p.desc.substring(0,80))+'…' : ''}</div>
         </div>
         <button class="search-card-btn">Ver</button>`;
       card.addEventListener('click', () => abrirProductoDesdeBuscador(p.id));
@@ -2570,9 +2665,8 @@ function ejecutarBusqueda(query){
     return;
   }
 
-  // Buscamos sobre el ÍNDICE COMPLETO (todo el catálogo), no solo lo ya cargado.
-  // Si el índice todavía no llegó por alguna razón, caemos a `productos` como respaldo.
-  const fuente = indiceCompleto.length ? indiceCompleto : productos;
+  // `productos` ya contiene TODO el catálogo (viene de catalogo/_indice)
+  const fuente = productos;
 
   const palabras = q.toLowerCase().split(/\s+/).filter(Boolean);
   const qLower = q.toLowerCase();
@@ -2609,19 +2703,16 @@ function ejecutarBusqueda(query){
     const card = document.createElement('div');
     card.className = 'search-card';
     const cats = Array.isArray(p.tipos) ? p.tipos.join(' · ') : (p.tipo || '');
-    // Los resultados que vienen del índice liviano traen `imgThumb` (una
-    // miniatura chica); si por algún motivo viene de `productos` en memoria
-    // (fallback), va a tener `img` completo en su lugar.
-    const imgSrc = p.imgThumb || p.img || '';
-    const imgHtml = imgSrc ? `<img src="${imgSrc}" alt="${p.nombre}">` : '';
+    const imgSrc = p.img || '';
+    const imgHtml = imgSrc ? `<img src="${esc(cldUrl(imgSrc, CLD_THUMB))}" alt="${esc(p.nombre)}" loading="lazy">` : '';
     card.innerHTML = `
       <div class="search-card-img">
         ${imgHtml}
       </div>
       <div class="search-card-info">
-        <div class="search-card-cat">${cats}</div>
+        <div class="search-card-cat">${esc(cats)}</div>
         <div class="search-card-name">${resaltarPalabras(p.nombre, palabras)}</div>
-        <div class="search-card-desc">${p.desc ? p.desc.substring(0,80)+'…' : ''}</div>
+        <div class="search-card-desc">${p.desc ? esc(p.desc.substring(0,80))+'…' : ''}</div>
       </div>
       <button class="search-card-btn">Ver</button>`;
     card.addEventListener('click', () => abrirProductoDesdeBuscador(p.id));
@@ -2652,8 +2743,10 @@ function resaltarPalabras(texto, palabras){
   const unicas = [...new Set((palabras || []).filter(Boolean))]
     // Las más largas primero, para que "collar" no le "gane" el match a "collares", etc.
     .sort((a, b) => b.length - a.length)
-    .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    // Se escapa la palabra igual que el texto, así matchea sobre el texto escapado
+    .map(w => esc(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 
+  texto = esc(texto);
   if(!unicas.length) return texto;
 
   // Un solo pase con alternancia sobre el texto ORIGINAL (nunca sobre el resultado
@@ -2684,7 +2777,18 @@ function toggleLoginPassword() {
 
 
 document.addEventListener('keydown', e => {
-  if(e.key === 'Escape') cerrarBuscador();
+  if(e.key !== 'Escape') return;
+  cerrarBuscador();
+  // Ventana del producto
+  const modal = document.getElementById('modal');
+  if(modal && modal.classList.contains('active')){
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+    resetModalZoom();
+  }
+  // Carrito
+  const cart = document.getElementById('cart-overlay');
+  if(cart && cart.classList.contains('active')) toggleCarrito();
 });
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -2795,8 +2899,9 @@ function agregarAlCarrito(producto) {
     // Si existe, solo sumamos 1 a la cantidad
     existente.cantidad += 1;
   } else {
-    // Si no existe, lo agregamos con cantidad inicial de 1
-    carrito.push({ ...producto, cantidad: 1 });
+    // Si no existe, lo agregamos con cantidad inicial de 1 (solo datos livianos,
+    // sin la lista de fotos, para poder guardarlo en localStorage)
+    carrito.push({ ...itemCarrito(producto), cantidad: 1 });
   }
 
   actualizarCarritoUI();
@@ -2839,6 +2944,8 @@ function actualizarCarritoUI() {
     countBadge.style.display = 'none';
   }
 
+  guardarCarritoLocal();
+
   // Lista vacía
   if (carrito.length === 0) {
     itemsContainer.innerHTML = '<p class="cart-empty">Tu carrito está vacío.<br><br>¡Agregá algunos productos!</p>';
@@ -2862,18 +2969,18 @@ function actualizarCarritoUI() {
     let precioMostrarHTML = '';
     if (p.enOferta && p.precioOferta) {
       precioMostrarHTML = `
-        <span style="text-decoration: line-through; color: var(--text-soft); opacity: 0.65; margin-right: 6px; font-size: 12px;">${p.precio}</span>
-        <span style="color: var(--principal); font-weight: bold;">${p.precioOferta}</span>
+        <span style="text-decoration: line-through; color: var(--text-soft); opacity: 0.65; margin-right: 6px; font-size: 12px;">${esc(p.precio)}</span>
+        <span style="color: var(--principal); font-weight: bold;">${esc(p.precioOferta)}</span>
       `;
     } else {
-      precioMostrarHTML = `<span>${p.precio}</span>`;
+      precioMostrarHTML = `<span>${esc(p.precio)}</span>`;
     }
     
     html += `
       <div class="cart-item">
-        <img src="${p.img}" class="cart-item-img">
+        <img src="${esc(cldUrl(p.img, CLD_THUMB))}" class="cart-item-img" alt="">
         <div class="cart-item-info">
-          <div class="cart-item-title">${p.nombre}</div>
+          <div class="cart-item-title">${esc(p.nombre)}</div>
           <div class="cart-item-price">${precioMostrarHTML} c/u</div>
           <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
             <button onclick="cambiarCantidad(${idx}, -1)" style="width:24px; height:24px; border:1px solid var(--detalles); background:transparent; cursor:pointer; border-radius:4px; display:flex; align-items:center; justify-content:center; color:var(--text); font-weight:bold; transition: background 0.2s;">-</button>
@@ -2890,13 +2997,53 @@ function actualizarCarritoUI() {
   totalEl.textContent = '$' + total.toLocaleString('es-AR');
 }
 
+// ── Persistencia del carrito (sobrevive a recargas) ──────────
+const CARRITO_KEY = 'carrito_v1';
+
+function itemCarrito(p){
+  const it = { id: p.id, nombre: p.nombre || '', precio: p.precio || '', img: p.img || '', enOferta: !!p.enOferta };
+  if(p.enOferta && p.precioOferta) it.precioOferta = p.precioOferta;
+  return it;
+}
+
+function guardarCarritoLocal(){
+  // Fotos en formato viejo (base64) no se guardan: pesan demasiado para localStorage.
+  // Al recargar, sincronizarCarritoConCatalogo() vuelve a completar la imagen.
+  const liviano = carrito.map(p => esBase64(p.img) ? { ...p, img: '' } : p);
+  try { localStorage.setItem(CARRITO_KEY, JSON.stringify(liviano)); } catch(e) {}
+}
+
+function cargarCarritoLocal(){
+  try {
+    const data = JSON.parse(localStorage.getItem(CARRITO_KEY) || '[]');
+    if(Array.isArray(data)){
+      carrito = data.filter(p => p && p.id && p.cantidad > 0);
+    }
+  } catch(e) { carrito = []; }
+  actualizarCarritoUI();
+}
+
+// Cuando llega el catálogo: actualizar nombre/precio/oferta de lo guardado y
+// sacar productos que ya no existen o que se ocultaron.
+function sincronizarCarritoConCatalogo(){
+  if(!carrito.length || !productos.length) return;
+  carrito = carrito
+    .map(item => {
+      const p = productos.find(x => x.id === item.id);
+      if(!p || (!ADMIN_MODE && productosOcultos.includes(p.id)) || !p.precio) return null;
+      return { ...itemCarrito(p), cantidad: item.cantidad };
+    })
+    .filter(Boolean);
+  actualizarCarritoUI();
+}
+
 function enviarPedidoWa() {
   if (carrito.length === 0) {
     mostrarToastError('El carrito está vacío.');
     return;
   }
 
-  let lineas = [`Hola! Como estas? Me gustaria hacer el siguiente pedido:`];
+  let lineas = [SITE_CONFIG.contacto.waTextoPedido || 'Hola! Como estas? Me gustaria hacer el siguiente pedido:'];
   let total = 0;
 
   carrito.forEach((p) => {
@@ -3453,3 +3600,146 @@ if (document.readyState === 'loading') {
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMobileMenu(); });
 
+
+
+// ════════════════════════════════════════════════════════
+//  ADMIN — Herramientas (Cloudinary, migración, índice)
+// ════════════════════════════════════════════════════════
+function toolsLog(msg){
+  const el = document.getElementById('tools-log');
+  if(el) el.innerHTML = msg;
+}
+
+// Logos / imagen de Nosotros que todavía están en base64
+function fotosBase64DePagina(){
+  const C = SITE_CONFIG;
+  return [
+    ['nosotrosImg', '_nosotrosImg'],
+    ['heroLogoImg', '_heroLogoImg'],
+    ['navLogoImg',  '_navLogoImg']
+  ].filter(([, k]) => esBase64(C[k]));
+}
+
+async function actualizarEstadoHerramientas(){
+  const cldEl = document.getElementById('tools-cld-estado');
+  const b64El = document.getElementById('tools-b64-estado');
+  const btnMigrar = document.getElementById('tools-btn-migrar');
+  if(cldEl){
+    try {
+      const snap = await CLOUDINARY_REF.get({ source: 'server' });
+      const d = snap.exists ? snap.data() : null;
+      if(d && d.cloudName && d.preset){
+        cldConfig = { cloudName: d.cloudName, preset: d.preset };
+        cldEl.innerHTML = `Configurado ✓ — cloud name: <strong>${esc(d.cloudName)}</strong> · preset: <strong>${esc(d.preset)}</strong>`;
+      } else {
+        cldEl.textContent = 'Sin configurar. Se te va a pedir la primera vez que subas una foto (o tocá "Configurar Cloudinary").';
+      }
+    } catch(err){
+      cldEl.textContent = 'No se pudo leer la configuración (¿publicaste la regla de "privado" en Firestore?).';
+    }
+  }
+  const nProd = contarFotosBase64();
+  const nPag  = fotosBase64DePagina().length;
+  if(b64El){
+    b64El.textContent = (nProd + nPag) === 0
+      ? 'Todas las fotos ya están en Cloudinary ✓'
+      : `Pendientes: ${nProd} foto${nProd !== 1 ? 's' : ''} de productos y ${nPag} imagen${nPag !== 1 ? 'es' : ''} de la página (formato viejo base64).`;
+  }
+  if(btnMigrar) btnMigrar.disabled = (nProd + nPag) === 0;
+}
+
+async function abrirModalHerramientas(){
+  document.getElementById('tools-modal').classList.add('active');
+  toolsLog('');
+  const b64El = document.getElementById('tools-b64-estado');
+  if(b64El) b64El.textContent = 'Sincronizando catálogo…';
+  try { await esperarAdminListo(); } catch(e) {}
+  actualizarEstadoHerramientas();
+}
+
+function cerrarModalHerramientas(e){
+  if(e.target.id !== 'tools-modal') return;
+  document.getElementById('tools-modal').classList.remove('active');
+}
+
+async function cambiarConfigCloudinary(){
+  try {
+    await configurarCloudinary();
+    mostrarToast('Cloudinary configurado ✓');
+  } catch(err){
+    mostrarToastError('⚠ ' + esc(err.message), 6000);
+  }
+  actualizarEstadoHerramientas();
+}
+
+// Sube a Cloudinary todas las fotos base64 (productos + logos/Nosotros).
+// Guarda producto por producto: si se corta, al volver a tocar el botón
+// sigue desde donde quedó.
+async function migrarFotosACloudinary(){
+  const btn = document.getElementById('tools-btn-migrar');
+  if(btn) btn.disabled = true;
+  try {
+    await esperarAdminListo();
+    await obtenerCloudinary();
+
+    const pendientes = productos.filter(p => {
+      const lista = Array.isArray(p.imgs) && p.imgs.length ? p.imgs : [p.img];
+      return lista.some(esBase64);
+    });
+
+    for(let i = 0; i < pendientes.length; i++){
+      const p = pendientes[i];
+      toolsLog(`Producto ${i + 1} de ${pendientes.length}: <strong>${esc(p.nombre)}</strong>…`);
+      const lista = Array.isArray(p.imgs) && p.imgs.length ? p.imgs : [p.img];
+      const urls = await subirFotosPendientes(lista.filter(Boolean));
+      p.imgs = urls;
+      p.img  = urls[0] || '';
+      // Solo el doc del item (el índice se regenera una vez al final)
+      await PRODS_COL.doc(p.id).set(productoParaIndice(p));
+    }
+
+    // Imágenes de la página (siteConfig)
+    const pag = fotosBase64DePagina();
+    if(pag.length){
+      const cambios = {};
+      for(let i = 0; i < pag.length; i++){
+        const [campo, clave] = pag[i];
+        toolsLog(`Imagen de la página ${i + 1} de ${pag.length}…`);
+        const url = await subirImagenCloudinary(SITE_CONFIG[clave]);
+        SITE_CONFIG[clave] = url;
+        cambios[campo] = url;
+      }
+      await CONFIG_REF.set(cambios, { merge: true });
+      try { localStorage.removeItem('config_cache'); } catch(e) {}
+    }
+
+    toolsLog('Regenerando el catálogo público…');
+    await commitCambios([]);
+    buildAllCarousels();
+    applyConfig();
+    toolsLog(`Listo ✓ — ${pendientes.length} producto${pendientes.length !== 1 ? 's' : ''} migrado${pendientes.length !== 1 ? 's' : ''}${pag.length ? ` y ${pag.length} imagen${pag.length !== 1 ? 'es' : ''} de la página` : ''}.`);
+    mostrarToast('Migración completa ✓');
+  } catch(err){
+    console.error('Error migrando fotos:', err);
+    toolsLog('⚠ Se cortó la migración: ' + esc(err.message) + '<br>Lo ya migrado quedó guardado. Volvé a tocar el botón para seguir.');
+  } finally {
+    actualizarEstadoHerramientas();
+  }
+}
+
+// Vuelve a armar catalogo/_indice leyendo la colección completa
+async function reconstruirIndice(){
+  try {
+    toolsLog('Leyendo todos los productos…');
+    await esperarAdminListo();
+    productos = await leerColeccionCompleta();
+    await commitCambios([]);
+    await guardarMetaEnFirebase();
+    buildAllCarousels();
+    toolsLog(`Índice regenerado ✓ (${productos.length} productos).`);
+  } catch(err){
+    console.error('Error regenerando índice:', err);
+    toolsLog('⚠ No se pudo regenerar: ' + esc(err.message));
+  }
+  actualizarEstadoHerramientas();
+}

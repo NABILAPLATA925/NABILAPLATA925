@@ -49,6 +49,7 @@ const SITE_CONFIG = {
   waDisplay:  "+54 351 2553298",           
   waTexto:    "Hola! Como estas? Me gustaria consultarte por tus productos!",
   waTextoProducto: "Hola! Como estas? Me gustaria consultarte por: *{nombre}*",
+  waTextoPedido:   "Hola! Como estas? Me gustaria hacer el siguiente pedido:", // primera línea del pedido del carrito
   ctaTitulo:  "Encontrá tu estilo ideal",
   ctaParrafo: "Te ayudamos a elegir la joya perfecta para expresar tu estilo o celebrar un momento especial. Consultanos por diseños disponibles, combinaciones y asesoramiento personalizado.",
   ctaBoton:   "Escribinos por WhatsApp"
@@ -68,11 +69,15 @@ const SITE_CONFIG = {
   tipoProducto:        "Joyas",               // Ej: "joya", "prenda", "producto"
   tipoProductoEjemplo: "Anillo", // Ej: "Anillo de plata", "Vestido talle M"
 
-  paginacionBatch: 8, // productos por batch por carrusel
 
   // ── CATEGORÍAS PREDEFINIDAS (panel admin) ──────────────────────
   // Las que aparecen en el dropdown al cargar el panel por primera vez
   categoriasFijas: [],
+
+  // ── CLOUDINARY ─────────────────────────────────────────────────
+  // Las fotos se suben a Cloudinary. El "cloud name" y el "upload preset"
+  // NO van acá: la página los pide la primera vez que el admin sube una foto
+  // (o desde ⚙ Herramientas) y los guarda en Firestore → privado/cloudinary.
 
   // ── FIREBASE ───────────────────────────────────────────────────
   // Creá un proyecto nuevo en https://console.firebase.google.com para cada cliente
@@ -135,7 +140,7 @@ const SITE_CONFIG = {
   // Se usan en la primera visita, antes de que Firebase responda.
   // Si el admin sube una imagen nueva desde el panel, se sobreescribe
   // y se guarda en caché — igual que los productos.
-  heroLogoImgDefault: "https://github.com/NABILAPLATA925/NABILAPLATA925/blob/main/img/LOGO3.png?raw=true",
+  heroLogoImgDefault: "img/LOGO3.png",   // ruta relativa (antes github.com/...?raw=true, que redirige)
   navLogoImgDefault:  null,
 
   productosDefault: []

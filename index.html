@@ -26,7 +26,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="dns-prefetch" href="https://firestore.googleapis.com">
-<link id="gfonts" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://res.cloudinary.com">
+<!-- Debe ser EXACTAMENTE la URL que arma applyConfig() con la tipografía de config.js
+     (si cambiás las fuentes en config.js, actualizá también esta línea para no descargar dos veces) -->
+<link id="gfonts" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&amp;family=EB+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&amp;family=Pinyon+Script:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&amp;family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&amp;display=swap" rel="stylesheet">
 <!-- Firebase — defer: no bloquean el render del HTML -->
 <script defer src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -308,6 +311,7 @@
     <button class="btn-admin-reset" onclick="abrirModalCategorias()">👁 Categorías</button>
     <button class="btn-admin-reset" onclick="abrirModalMarquee()">📢 Cinta Promocional</button>
     <button class="btn-admin-reset" onclick="abrirModalEditarPagina()">✏ Editar página</button>
+    <button class="btn-admin-reset" onclick="abrirModalHerramientas()">⚙ Herramientas</button>
     <button onclick="logoutAdmin()">Salir</button>
   </div>
 </div>
@@ -467,7 +471,7 @@
     <div class="ep-panel" id="ep-panel-hero">     
       <div class="admin-field">
         <label>Imagen del título principal (logo del hero)</label>
-        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Subí la imagen que reemplaza el texto del título en el hero. Se guarda en Firestore y se aplica automáticamente.</p>
+        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Subí la imagen que reemplaza el texto del título en el hero. Se sube a Cloudinary y se aplica automáticamente.</p>
         <label class="admin-foto-label" for="ep-hero-logo-input" style="margin-top:4px">
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           <span id="ep-hero-logo-texto">Hacé clic para subir la imagen del título</span>
@@ -496,10 +500,6 @@
           <p style="font-size:11px;color:var(--text-soft);margin:0 0 4px">Imagen actual:</p>
           <img id="ep-nav-logo-actual-img" src="" alt="Logo actual" style="max-height:40px;border-radius:4px;opacity:0.7;border:1px solid var(--detalles);background:#f9f9f9;padding:4px">
         </div>
-      </div>
-      <div class="admin-field">
-        <label>Rubro (ej: Indumentaria y joyería)</label>
-        <input type="text" id="ep-rubro" placeholder="Ej: Indumentaria y joyería">
       </div>
       <div class="admin-field">
         <label>Rubro (ej: Indumentaria y joyería)</label>
@@ -737,6 +737,35 @@
       <button class="btn-cancelar" onclick="document.getElementById('banner-form-overlay').classList.remove('active')">Cancelar</button>
       <button class="btn-guardar" onclick="guardarBannerForm()">Guardar banner</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL HERRAMIENTAS (admin) -->
+<div class="cat-modal-overlay" id="tools-modal" onclick="cerrarModalHerramientas(event)">
+  <div class="cat-modal">
+    <button class="admin-close" onclick="document.getElementById('tools-modal').classList.remove('active')">✕</button>
+    <h2>Herramientas</h2>
+    <p class="a-subtitle">Fotos en Cloudinary y mantenimiento del catálogo</p>
+
+    <div class="admin-field">
+      <label>Cloudinary</label>
+      <p class="tools-estado" id="tools-cld-estado">Cargando…</p>
+      <button class="btn-cancelar" onclick="cambiarConfigCloudinary()">Configurar Cloudinary</button>
+    </div>
+
+    <div class="admin-field">
+      <label>Fotos en formato viejo</label>
+      <p class="tools-estado" id="tools-b64-estado">Cargando…</p>
+      <button class="btn-guardar" id="tools-btn-migrar" onclick="migrarFotosACloudinary()">Migrar fotos a Cloudinary</button>
+    </div>
+
+    <div class="admin-field">
+      <label>Catálogo público</label>
+      <p class="tools-estado">Usalo si después de una restauración o de editar en la consola de Firebase algo no se ve actualizado.</p>
+      <button class="btn-cancelar" onclick="reconstruirIndice()">Regenerar índice</button>
+    </div>
+
+    <div class="tools-log" id="tools-log"></div>
   </div>
 </div>
 
