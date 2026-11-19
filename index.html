@@ -168,6 +168,11 @@
   </div>
 </div>
 
+<!-- VIDEOS: entre el título principal y Nosotros (solo se ve si hay videos en esta posición) -->
+<section class="videos-section" id="videos-hero" data-pos="hero" style="display:none">
+  <div class="container"><div class="videos-grid"></div></div>
+</section>
+
 <!-- NOSOTROS -->
 <section id="nosotros">
   <div class="container">
@@ -192,6 +197,11 @@
   </div>
 </section>
 
+<!-- VIDEOS: entre Nosotros y Productos (solo se ve si hay videos en esta posición) -->
+<section class="videos-section" id="videos-nosotros" data-pos="nosotros" style="display:none">
+  <div class="container"><div class="videos-grid"></div></div>
+</section>
+
 <!-- PRODUCTOS -->
 <section id="productos" class="productos-section">
   <div class="container">
@@ -207,6 +217,11 @@
       </div>
     </div>
   </div>
+</section>
+
+<!-- VIDEOS: entre Productos y Contacto (solo se ve si hay videos en esta posición) -->
+<section class="videos-section" id="videos-productos" data-pos="productos" style="display:none">
+  <div class="container"><div class="videos-grid"></div></div>
 </section>
 
 <!-- CONTACTO -->
@@ -256,6 +271,11 @@
       </div>
     </div>
   </div>
+</section>
+
+<!-- VIDEOS: al final, antes del pie de página (solo se ve si hay videos en esta posición) -->
+<section class="videos-section" id="videos-final" data-pos="final" style="display:none">
+  <div class="container"><div class="videos-grid"></div></div>
 </section>
 
 <!-- FOOTER -->
@@ -355,12 +375,12 @@
       <textarea id="a-desc" placeholder="Contá sus características, qué lo hace especial…"></textarea>
     </div>
     <div class="admin-field">
-      <label>Fotos del producto * <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(podés agregar varias · hacé clic en una para marcarla como portada)</span></label>
+      <label>Fotos del producto * <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(hasta 3 fotos · solo imágenes · hacé clic en una para marcarla como portada)</span></label>
       <label class="admin-foto-label" for="a-foto-input">
         <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <span id="a-foto-texto">Hacé clic para subir imágenes</span>
+        <span id="a-foto-texto">Hacé clic para subir imágenes (máximo 3)</span>
       </label>
-      <input type="file" id="a-foto-input" accept="image/*" multiple style="display:none" onchange="agregarFotos(event)">
+      <input type="file" id="a-foto-input" accept="image/jpeg,image/png,image/webp" multiple style="display:none" onchange="agregarFotos(event)">
       <div class="fotos-preview-grid" id="fotos-preview-grid"></div>
     </div>
 
@@ -465,6 +485,7 @@
       <button class="ep-tab active" data-tab="hero" onclick="cambiarTabEP('hero')">Inicio</button>
       <button class="ep-tab" data-tab="nosotros" onclick="cambiarTabEP('nosotros')">Nosotros</button>
       <button class="ep-tab" data-tab="contacto" onclick="cambiarTabEP('contacto')">Contacto</button>
+      <button class="ep-tab" data-tab="videos" onclick="cambiarTabEP('videos')">Videos</button>
     </div>
 
     <!-- TAB: INICIO / HERO -->
@@ -476,7 +497,7 @@
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           <span id="ep-hero-logo-texto">Hacé clic para subir la imagen del título</span>
         </label>
-        <input type="file" id="ep-hero-logo-input" accept="image/*" style="display:none" onchange="cargarHeroLogo(event)">
+        <input type="file" id="ep-hero-logo-input" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="cargarHeroLogo(event)">
         <div id="ep-hero-logo-preview" style="margin-top:10px;display:none">
           <img id="ep-hero-logo-thumb" src="" alt="Preview" style="max-width:220px;border-radius:4px;border:1px solid var(--detalles)">
         </div>
@@ -492,7 +513,7 @@
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           <span id="ep-nav-logo-texto">Hacé clic para subir la imagen del NAV</span>
         </label>
-        <input type="file" id="ep-nav-logo-input" accept="image/*" style="display:none" onchange="cargarNavLogo(event)">       
+        <input type="file" id="ep-nav-logo-input" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="cargarNavLogo(event)">       
         <div id="ep-nav-logo-preview" style="margin-top:10px;display:none">
           <img id="ep-nav-logo-thumb" src="" alt="Preview" style="max-height:40px;border-radius:4px;border:1px solid var(--detalles);background:#f9f9f9;padding:4px">
         </div>        
@@ -520,11 +541,32 @@
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           <span id="ep-nosotros-img-texto">Hacé clic para cambiar la imagen</span>
         </label>
-        <input type="file" id="ep-nosotros-img-input" accept="image/*" style="display:none" onchange="cargarImagenNosotros(event)">
+        <input type="file" id="ep-nosotros-img-input" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="cargarImagenNosotros(event)">
         <div id="ep-nosotros-img-preview" style="margin-top:10px;display:none">
           <img id="ep-nosotros-img-thumb" src="" alt="Preview" style="max-width:160px;border-radius:4px;border:1px solid var(--detalles);background:#f9f9f9">
         </div>
         <button type="button" onclick="usarImagenNosotrosOriginal()" style="margin-top:8px;background:none;border:1px dashed var(--detalles);border-radius:2px;padding:6px 12px;cursor:pointer;font-size:12px;color:var(--text-soft)">↺ Usar la imagen original</button>
+      </div>
+    </div>
+
+    <!-- TAB: VIDEOS -->
+    <div class="ep-panel" id="ep-panel-videos" style="display:none">
+      <div class="admin-field">
+        <label>Videos de la página principal</label>
+        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Hasta 3 videos en total (MP4, WEBM o MOV, máximo 40 MB cada uno). Para cada video elegí <strong>dónde</strong> va y si se reproduce solo; los demás se ven con "tocar para ver".</p>
+        <div class="ep-aviso-cuota" role="note">
+          <strong>⚠ Máximo 1 video automático.</strong>
+          No se pueden seleccionar 2 o más videos que se reproduzcan solos, por la cuota del plan gratuito de Cloudinary (donde se alojan los videos). Un video automático se descarga en todas las visitas y consume mucho del plan.
+        </div>
+        <label class="admin-foto-label" for="ep-video-input" id="ep-video-label" style="margin-top:4px">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span id="ep-video-texto">Hacé clic para agregar un video</span>
+        </label>
+        <input type="file" id="ep-video-input" accept="video/mp4,video/webm,video/quicktime" style="display:none" onchange="agregarVideoInicio(event)">
+        <div class="ep-videos-lista" id="ep-videos-lista"></div>
+        <button type="button" class="ep-btn-acomodar" id="ep-btn-acomodar" onclick="abrirAcomodarVideos()" style="display:none">
+          🗺 Acomodar videos en la página
+        </button>
       </div>
     </div>
 
@@ -805,5 +847,26 @@
   </div>
 </div>
 
+
+<!-- VENTANA: ACOMODAR VIDEOS (esquema visual de la página) -->
+<div class="admin-modal-overlay vl-overlay" id="video-layout-modal" onclick="if(event.target===this) cerrarAcomodarVideos(false)">
+  <div class="admin-modal vl-modal">
+    <button class="admin-close" onclick="cerrarAcomodarVideos(false)">✕</button>
+    <h2>Acomodar videos</h2>
+    <p class="a-subtitle">Así está ordenada tu página</p>
+    <p class="vl-instrucciones">
+      <span class="vl-solo-compu">Arrastrá cada video al lugar de la página donde lo querés.</span>
+      <span class="vl-solo-cel">Tocá un video y después tocá el lugar de la página donde lo querés.</span>
+      Si soltás un video sobre otro, queda antes que ese.
+    </p>
+    <div class="vl-ayuda-sel" id="vl-ayuda-sel" style="display:none"></div>
+    <div class="vl-esquema" id="vl-esquema"></div>
+    <div class="admin-actions vl-acciones">
+      <button class="btn-cancelar" onclick="cerrarAcomodarVideos(false)">Cancelar</button>
+      <button class="btn-guardar" onclick="cerrarAcomodarVideos(true)">Aplicar</button>
+    </div>
+    <p class="vl-nota">Después tocá «Guardar cambios» en «Editar página» para publicarlo.</p>
+  </div>
+</div>
 </body>
 </html>

@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null 
+          && request.auth.uid in [
+               "gRLJR4r0smOFPxQD8h0oijWld1H3",
+               "02Jxq7QC5BPLLuzdXwpcZpqKJ3R2"
+             ];
+    }
+
+    // Incluye _meta, _indice (nuevo: catálogo público en un solo doc), siteConfig y marquee
+    match /catalogo/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /catalogo/productos/items/{productoId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // NUEVO v5.0: datos de Cloudinary (cloud name + preset). Solo admins.
+    match /privado/{doc} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

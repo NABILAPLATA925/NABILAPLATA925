@@ -192,6 +192,9 @@ function applyConfig() {
         <span class="stat-label">${esc(s.label)}</span>
       </div>`).join('');
 
+  // ── VIDEOS ───────────────────────────────────────────
+  renderVideosInicio();
+
   // ── PRODUCTOS ────────────────────────────────────────
   document.getElementById('productos-label').textContent = C.productos.label;
   document.getElementById('productos-titulo').textContent = C.productos.titulo;
@@ -471,8 +474,67 @@ async function configurarCloudinary(){
   return cldConfig;
 }
 
+// ── LÍMITES DEL PLAN DE CLOUDINARY ─────────────────────────────
+// Plan actual: imagen máx 10 MB / 25 MP · video máx 100 MB.
+// Se deja un margen de seguridad para no rozar nunca el límite.
+const LIMITES = {
+  FOTOS_POR_PRODUCTO: 3,
+  VIDEOS_INICIO:      3,
+  VIDEOS_AUTO:        1,   // máx de videos que se reproducen solos (cuota del plan gratis)
+  IMG_MAX_BYTES:      9 * 1000 * 1000,     // 9 MB  (límite real: 10 MB)
+  IMG_MAX_MP:         24,                  // 24 MP (límite real: 25 MP)
+  // 40 MB (límite real de subida: 100 MB). Se deja en 40 para que Cloudinary
+  // pueda generar al instante la versión liviana del video que ven los visitantes.
+  VIDEO_MAX_BYTES:    40 * 1000 * 1000,
+  VIDEO_AVISO_BYTES:  20 * 1000 * 1000     // por encima de esto se sugiere comprimir
+};
+const FORMATOS_IMAGEN = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/avif'];
+const FORMATOS_VIDEO  = ['video/mp4', 'video/webm', 'video/quicktime'];
+
+function formatoMB(bytes){ return (bytes / 1000 / 1000).toFixed(1).replace('.', ',') + ' MB'; }
+
+// Tamaño en bytes de un File/Blob o de un dataURL base64
+function tamanoArchivo(archivo){
+  if(archivo && typeof archivo.size === 'number') return archivo.size;
+  if(typeof archivo === 'string' && archivo.startsWith('data:')){
+    const coma = archivo.indexOf(',');
+    const b64 = archivo.slice(coma + 1);
+    const relleno = b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0;
+    return Math.floor(b64.length * 3 / 4) - relleno;
+  }
+  return 0;
+}
+
+// Devuelve un mensaje de error si el archivo elegido NO es una foto válida
+function validarArchivoFoto(file){
+  if(!file) return 'No se seleccionó ningún archivo.';
+  if(file.type && file.type.startsWith('video/')) return `"${file.name}" es un video. En los productos solo se pueden subir fotos.`;
+  if(!FORMATOS_IMAGEN.includes(file.type)) return `"${file.name}" no es un formato de foto compatible (usá JPG, PNG o WEBP).`;
+  return null;
+}
+
+// Devuelve un mensaje de error si el archivo NO es un video válido o supera el límite
+function validarArchivoVideo(file){
+  if(!file) return 'No se seleccionó ningún archivo.';
+  if(!file.type.startsWith('video/') || !FORMATOS_VIDEO.includes(file.type)){
+    return `"${file.name}" no es un video compatible (usá MP4, WEBM o MOV).`;
+  }
+  if(file.size > LIMITES.VIDEO_MAX_BYTES){
+    return `"${file.name}" pesa ${formatoMB(file.size)} y el máximo permitido es ${formatoMB(LIMITES.VIDEO_MAX_BYTES)}.\nComprimilo (por ejemplo con HandBrake o un compresor online) y volvé a intentar.`;
+  }
+  return null;
+}
+
 // archivo: File, Blob o dataURL base64 (Cloudinary acepta los tres como "file")
 async function subirImagenCloudinary(archivo){
+  // Control final antes de subir: nunca mandar algo que supere el plan
+  const bytes = tamanoArchivo(archivo);
+  if(bytes > LIMITES.IMG_MAX_BYTES){
+    throw new Error(`La imagen pesa ${formatoMB(bytes)} y el máximo es ${formatoMB(LIMITES.IMG_MAX_BYTES)}.`);
+  }
+  if(typeof archivo === 'string' && archivo.startsWith('data:') && !archivo.startsWith('data:image/')){
+    throw new Error('Solo se pueden subir imágenes.');
+  }
   const { cloudName, preset } = await obtenerCloudinary();
   const fd = new FormData();
   fd.append('file', archivo);
@@ -486,6 +548,32 @@ async function subirImagenCloudinary(archivo){
     throw new Error('Cloudinary: ' + ((data.error && data.error.message) || ('HTTP ' + r.status)));
   }
   return data.secure_url;
+}
+
+// Sube un video (File) a Cloudinary con barra de progreso.
+// onProgreso(porcentaje 0-100)
+async function subirVideoCloudinary(file, onProgreso){
+  const err = validarArchivoVideo(file);
+  if(err) throw new Error(err);
+  const { cloudName, preset } = await obtenerCloudinary();
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('upload_preset', preset);
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/video/upload`);
+    xhr.upload.onprogress = ev => {
+      if(ev.lengthComputable && onProgreso) onProgreso(Math.round(ev.loaded * 100 / ev.total));
+    };
+    xhr.onload = () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText); } catch(e) {}
+      if(xhr.status >= 200 && xhr.status < 300 && data.secure_url) resolve(data.secure_url);
+      else reject(new Error('Cloudinary: ' + ((data.error && data.error.message) || ('HTTP ' + xhr.status))));
+    };
+    xhr.onerror = () => reject(new Error('No se pudo subir el video (revisá la conexión).'));
+    xhr.send(fd);
+  });
 }
 
 // Sube SOLO las fotos base64 de la lista; las que ya son URL se conservan.
@@ -511,8 +599,9 @@ function cldUrl(src, transf){
   if(typeof src !== 'string' || !src.includes('res.cloudinary.com') || !src.includes('/upload/')) return src;
   return src.replace('/upload/', `/upload/${transf}/`);
 }
-const CLD_CARD  = 'f_auto,q_auto,c_limit,w_600';
-const CLD_MODAL = 'f_auto,q_auto,c_limit,w_1400';
+const CLD_CARD  = 'f_auto,q_auto:eco,c_limit,w_600';
+// En celulares alcanza con 1000 px; en compu se usa 1400 px
+const CLD_MODAL = (window.innerWidth || 1000) <= 760 ? 'f_auto,q_auto,c_limit,w_1000' : 'f_auto,q_auto,c_limit,w_1400';
 const CLD_THUMB = 'f_auto,q_auto,c_fill,w_160,h_160';
 const CLD_LOGO  = 'f_auto,q_auto,c_limit,w_800';
 
@@ -683,6 +772,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if(data.nosotrosImg)   SITE_CONFIG._nosotrosImg    = data.nosotrosImg;
       if(data.heroLogoImg)   SITE_CONFIG._heroLogoImg    = data.heroLogoImg;
       if(data.navLogoImg)    SITE_CONFIG._navLogoImg     = data.navLogoImg;
+      if(Array.isArray(data.videosInicio)) SITE_CONFIG._videosInicio = data.videosInicio;
     }
   } catch(e) {}
 
@@ -1406,7 +1496,10 @@ function openModal(p){
     imgContainer.innerHTML = `<img src="${esc(cldUrl(imgs[0], CLD_MODAL))}" alt="${esc(p.nombre)}" style="width:100%;height:100%;object-fit:cover;">`;
   } else {
     let dotsHTML = imgs.map((_,i) => `<div class="modal-dot${i===0?' active':''}" onclick="modalCarouselGo(${i})"></div>`).join('');
-    let imgsHTML = imgs.map((src,i) => `<img src="${esc(cldUrl(src, CLD_MODAL))}" class="${i===0?'active':''}" alt="">`).join('');
+    // Solo se descarga la primera foto; las demás recién cuando se pasan
+    let imgsHTML = imgs.map((src,i) => i === 0
+      ? `<img src="${esc(cldUrl(src, CLD_MODAL))}" class="active" alt="">`
+      : `<img data-src="${esc(cldUrl(src, CLD_MODAL))}" alt="">`).join('');
     imgContainer.innerHTML = `
       <div class="modal-img-carousel" id="modal-carousel">
         ${imgsHTML}
@@ -1501,7 +1594,12 @@ function modalCarouselGo(idx){
   window._modalCarouselIdx = idx;
   const carousel = document.getElementById('modal-carousel');
   if(!carousel) return;
-  carousel.querySelectorAll('img').forEach((img, i) => img.classList.toggle('active', i === idx));
+  carousel.querySelectorAll('img').forEach((img, i) => {
+    // carga la foto actual y la siguiente (para que el cambio sea instantáneo)
+    const total = window._modalCarouselTotal || 1;
+    if((i === idx || i === (idx + 1) % total) && img.dataset.src && !img.getAttribute('src')) img.src = img.dataset.src;
+    img.classList.toggle('active', i === idx);
+  });
   carousel.querySelectorAll('.modal-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
 }
 
@@ -1775,30 +1873,65 @@ function cerrarAdminModal(e){
   poblarSelectTipo([]);
   resetCampoOferta();
   renderFotosGrid();
+  document.getElementById('a-foto-texto').textContent = textoFotosCargadas();
   document.querySelector('.admin-modal h2').textContent = 'Nuevo producto';
 }
 
+function textoFotosCargadas(){
+  const n = fotosBase64.length;
+  if(n === 0) return `Hacé clic para subir imágenes (máximo ${LIMITES.FOTOS_POR_PRODUCTO})`;
+  const base = `${n} imagen${n!==1?'es':''} cargada${n!==1?'s':''} de ${LIMITES.FOTOS_POR_PRODUCTO}`;
+  return n >= LIMITES.FOTOS_POR_PRODUCTO ? base + ' — llegaste al máximo' : base;
+}
+
 function agregarFotos(e){
-  const files = Array.from(e.target.files);
-  if(!files.length) return;
-  let pending = files.length;
-  files.forEach(file => {
-    comprimirImagen(file, base64 => {
-      fotosBase64.push(base64);
-      pending--;
-      if(pending === 0){
-        if(fotosBase64.length === files.length) portadaIdx = 0;
-        renderFotosGrid();
-        document.getElementById('a-foto-texto').textContent = `${fotosBase64.length} imagen${fotosBase64.length!==1?'es':''} cargada${fotosBase64.length!==1?'s':''}`;
-      }
-    });
-  });
+  let files = Array.from(e.target.files);
   e.target.value = '';
+  if(!files.length) return;
+
+  // 1) Solo fotos: se descartan videos y formatos no compatibles
+  const errores = [];
+  files = files.filter(f => {
+    const err = validarArchivoFoto(f);
+    if(err) errores.push(err);
+    return !err;
+  });
+
+  // 2) Máximo de fotos por producto
+  const lugares = LIMITES.FOTOS_POR_PRODUCTO - fotosBase64.length;
+  if(lugares <= 0){
+    alert(`Cada producto puede tener como máximo ${LIMITES.FOTOS_POR_PRODUCTO} fotos.\nEliminá alguna para agregar otra.`);
+    return;
+  }
+  if(files.length > lugares){
+    errores.push(`Cada producto puede tener como máximo ${LIMITES.FOTOS_POR_PRODUCTO} fotos: se agregaron solo ${lugares} de las ${files.length} elegidas.`);
+    files = files.slice(0, lugares);
+  }
+  if(errores.length) alert(errores.join('\n\n'));
+  if(!files.length) return;
+
+  const eraVacio = fotosBase64.length === 0;
+  const resultados = new Array(files.length).fill(null);
+  let pending = files.length;
+  const terminar = () => {
+    if(--pending > 0) return;
+    resultados.filter(Boolean).forEach(b64 => {
+      if(fotosBase64.length < LIMITES.FOTOS_POR_PRODUCTO) fotosBase64.push(b64);
+    });
+    if(eraVacio) portadaIdx = 0;
+    renderFotosGrid();
+    document.getElementById('a-foto-texto').textContent = textoFotosCargadas();
+  };
+  files.forEach((file, i) => {
+    comprimirImagen(file, base64 => { resultados[i] = base64; terminar(); }, terminar);
+  });
 }
 
 function renderFotosGrid(){
   const grid = document.getElementById('fotos-preview-grid');
   if(!grid) return;
+  const txt = document.getElementById('a-foto-texto');
+  if(txt) txt.textContent = textoFotosCargadas();
   grid.innerHTML = '';
   fotosBase64.forEach((src, i) => {
     const wrap = document.createElement('div');
@@ -1814,55 +1947,64 @@ function renderFotosGrid(){
       fotosBase64.splice(i, 1);
       if(portadaIdx >= fotosBase64.length) portadaIdx = Math.max(0, fotosBase64.length - 1);
       renderFotosGrid();
-      document.getElementById('a-foto-texto').textContent = fotosBase64.length === 0
-        ? 'Hacé clic para subir imágenes'
-        : `${fotosBase64.length} imagen${fotosBase64.length!==1?'es':''} cargada${fotosBase64.length!==1?'s':''}`;
+      document.getElementById('a-foto-texto').textContent = textoFotosCargadas();
     });
     grid.appendChild(wrap);
   });
 }
 
-function comprimirImagen(file, callback){
+// Lee un archivo de imagen y lo redimensiona en un canvas.
+// Siempre devuelve algo MUY por debajo de los límites de Cloudinary
+// (lado máx 1600 px ≈ 2,6 MP, y se baja la calidad si hiciera falta).
+function leerImagenEnCanvas(file, maxLado, onListo, onError){
+  const fallar = msg => { alert(msg); if(onError) onError(); };
+  const err = validarArchivoFoto(file);
+  if(err){ fallar(err); return; }
   const reader = new FileReader();
+  reader.onerror = () => fallar(`No se pudo leer "${file.name}".`);
   reader.onload = ev => {
     const img = new Image();
+    img.onerror = () => fallar(`"${file.name}" no se pudo abrir como imagen. Probá guardarla como JPG o PNG.`);
     img.onload = () => {
-      // Ahora la foto va a Cloudinary (no a Firestore): se puede subir con más calidad.
-      // Cloudinary después entrega versiones livianas según el tamaño de pantalla.
-      const MAX = 1600;
       let w = img.width, h = img.height;
-      if(w > MAX){ h = Math.round(h * MAX / w); w = MAX; }
-      if(h > MAX){ w = Math.round(w * MAX / h); h = MAX; }
+      if(w > maxLado){ h = Math.round(h * maxLado / w); w = maxLado; }
+      if(h > maxLado){ w = Math.round(w * maxLado / h); h = maxLado; }
+      if(w * h > LIMITES.IMG_MAX_MP * 1e6){ fallar(`"${file.name}" es demasiado grande.`); return; }
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      callback(canvas.toDataURL('image/jpeg', 0.85));
+      onListo(canvas, img);
     };
     img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
 }
 
+function comprimirImagen(file, callback, onError){
+  leerImagenEnCanvas(file, 1600, (canvas, img) => {
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    // Ahora la foto va a Cloudinary: se sube con buena calidad y Cloudinary
+    // después entrega versiones livianas según el tamaño de pantalla.
+    let calidad = 0.85;
+    let out = canvas.toDataURL('image/jpeg', calidad);
+    while(tamanoArchivo(out) > LIMITES.IMG_MAX_BYTES && calidad > 0.4){
+      calidad -= 0.1;
+      out = canvas.toDataURL('image/jpeg', calidad);
+    }
+    callback(out);
+  }, onError);
+}
+
 // Igual que comprimirImagen pero exporta PNG para preservar transparencia (ej: logo hero)
-function comprimirImagenPNG(file, callback){
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const img = new Image();
-    img.onload = () => {
-      const MAX = 1000;
-      let w = img.width, h = img.height;
-      if(w > MAX){ h = Math.round(h * MAX / w); w = MAX; }
-      if(h > MAX){ w = Math.round(w * MAX / h); h = MAX; }
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, w, h); // asegura fondo transparente
-      ctx.drawImage(img, 0, 0, w, h);
-      callback(canvas.toDataURL('image/png'));
-    };
-    img.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
+function comprimirImagenPNG(file, callback, onError){
+  leerImagenEnCanvas(file, 1000, (canvas, img) => {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height); // asegura fondo transparente
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    let out = canvas.toDataURL('image/png');
+    // Si el PNG quedara pesado de más (muy raro a 1000 px), se usa WEBP con transparencia
+    if(tamanoArchivo(out) > LIMITES.IMG_MAX_BYTES) out = canvas.toDataURL('image/webp', 0.9);
+    callback(out);
+  }, onError);
 }
 
 // Mostrar/ocultar input de nueva categoría
@@ -1929,6 +2071,12 @@ async function guardarProducto(){
   if(!nombre)    { alert('Por favor ingresá el nombre del producto.'); return; }
   if(!tiposSeleccionados.length){ alert('Por favor seleccioná al menos una categoría.'); return; }
   if(!fotosBase64.length){ alert('Por favor subí al menos una foto del producto.'); return; }
+  // Límite de fotos: se controla solo si hay fotos nuevas (productos viejos con
+  // más fotos ya subidas se pueden seguir editando sin tocar sus fotos).
+  if(fotosBase64.length > LIMITES.FOTOS_POR_PRODUCTO && fotosBase64.some(esBase64)){
+    alert(`Cada producto puede tener como máximo ${LIMITES.FOTOS_POR_PRODUCTO} fotos. Eliminá ${fotosBase64.length - LIMITES.FOTOS_POR_PRODUCTO} para poder guardar.`);
+    return;
+  }
 
   // ── OFERTA ────────────────────────────────────────────────────
   const esOferta = document.getElementById('a-es-oferta').checked;
@@ -2026,7 +2174,7 @@ function abrirModalEditar(p){
   fotosBase64 = p.imgs && p.imgs.length > 0 ? [...p.imgs] : [p.img];
   portadaIdx = 0;
   renderFotosGrid();
-  document.getElementById('a-foto-texto').textContent = `${fotosBase64.length} imagen${fotosBase64.length!==1?'es':''} cargada${fotosBase64.length!==1?'s':''}`;
+  document.getElementById('a-foto-texto').textContent = textoFotosCargadas();
   document.querySelector('.admin-modal h2').textContent = 'Editar producto';
   document.getElementById('admin-modal').classList.add('active');
 }
@@ -2353,6 +2501,7 @@ async function cargarConfigEditable(){
       if(data.nosotrosImg)      SITE_CONFIG._nosotrosImg     = data.nosotrosImg;
       if(data.heroLogoImg)      SITE_CONFIG._heroLogoImg     = data.heroLogoImg;
       if(data.navLogoImg)       SITE_CONFIG._navLogoImg      = data.navLogoImg;
+      SITE_CONFIG._videosInicio = Array.isArray(data.videosInicio) ? data.videosInicio : [];
       return data;
     }
   } catch(err){
@@ -2440,6 +2589,10 @@ function abrirModalEditarPagina(){
   document.getElementById('ep-cta-parrafo').value       = C.contacto.ctaParrafo || '';
   document.getElementById('ep-cta-boton').value         = C.contacto.ctaBoton || '';
 
+  // Videos de la página principal
+  videosEditando = normalizarVideos(C._videosInicio);
+  renderListaVideosEP();
+
   // Mostrar tab inicial
   cambiarTabEP('hero');
   document.getElementById('edit-pagina-modal').classList.add('active');
@@ -2499,6 +2652,28 @@ async function guardarEditarPagina(){
       subidas[pendientes[i][0]] = await subirImagenCloudinary(pendientes[i][1]);
     }
 
+    // Videos nuevos (máx 3 en total, cada uno controlado contra el límite)
+    if(videosEditando.length > LIMITES.VIDEOS_INICIO){
+      throw new Error(`Solo se permiten ${LIMITES.VIDEOS_INICIO} videos en la página principal.`);
+    }
+    if(videosEditando.filter(v => v.auto).length > LIMITES.VIDEOS_AUTO){
+      throw new Error('Solo 1 video puede reproducirse automáticamente (cuota del plan gratuito).');
+    }
+    const videosNuevos = videosEditando.filter(v => v.file);
+    let nVideo = 0;
+    for(const v of videosEditando){
+      if(!v.file) continue;
+      nVideo++;
+      v.url = await subirVideoCloudinary(v.file, pct => {
+        mostrarToast(`Subiendo video ${nVideo} de ${videosNuevos.length}… ${pct}%`);
+      });
+      URL.revokeObjectURL(v.preview);
+      delete v.file; delete v.preview;
+    }
+    const videosFinal = videosEditando
+      .filter(v => v.url)
+      .map(v => ({ url: v.url, pos: v.pos, auto: !!v.auto }));
+
     // ── 2) Leer valores ──────────────────────────────────
     C.rubro      = document.getElementById('ep-rubro').value.trim();
     C.ubicacion  = document.getElementById('ep-ubicacion').value.trim();
@@ -2533,6 +2708,7 @@ async function guardarEditarPagina(){
     else if(nosotrosUsarOriginal) C._nosotrosImg = null;
     if(subidas.hero)     C._heroLogoImg = subidas.hero;
     if(subidas.nav)      C._navLogoImg  = subidas.nav;
+    C._videosInicio = videosFinal;
 
     // ── 3) Persistir en Firebase ──────────────────────────
     mostrarToast('Guardando…');
@@ -2547,7 +2723,8 @@ async function guardarEditarPagina(){
       contacto:     C.contacto,
       nosotrosImg:  C._nosotrosImg || null,
       heroLogoImg:  C._heroLogoImg || null,
-      navLogoImg:   C._navLogoImg  || null
+      navLogoImg:   C._navLogoImg  || null,
+      videosInicio: C._videosInicio || []
     };
     await CONFIG_REF.set(data);
     // Invalidar caché de otros dispositivos
@@ -2569,6 +2746,360 @@ async function guardarEditarPagina(){
   } finally {
     if(btnGuardar){ btnGuardar.disabled = false; btnGuardar.textContent = 'Guardar cambios'; }
   }
+}
+
+// ════════════════════════════════════════════════════════
+//  VIDEOS de la página principal (máx 3 en total, solo acá — no en productos)
+//  Cada video tiene su posición y si se reproduce solo o al tocar.
+// ════════════════════════════════════════════════════════
+const POSICIONES_VIDEO = [
+  { id: 'hero',      label: 'Después del título (antes de Nosotros)' },
+  { id: 'nosotros',  label: 'Después de Nosotros (antes de Productos)' },
+  { id: 'productos', label: 'Después de Productos (antes de Contacto)' },
+  { id: 'final',     label: 'Al final de la página' }
+];
+const POS_VIDEO_DEFAULT = 'nosotros';
+
+// Acepta el formato viejo (lista de URLs) y el nuevo ({url, pos, auto})
+function normalizarVideos(lista){
+  if(!Array.isArray(lista)) return [];
+  const posValidas = POSICIONES_VIDEO.map(p => p.id);
+  return lista.map(v => {
+    if(typeof v === 'string') return { url: v, pos: POS_VIDEO_DEFAULT, auto: true };
+    if(v && typeof v.url === 'string'){
+      return { url: v.url, pos: posValidas.includes(v.pos) ? v.pos : POS_VIDEO_DEFAULT, auto: !!v.auto };
+    }
+    return null;
+  }).filter(Boolean).map((v, i, arr) => {
+    // Nunca más de LIMITES.VIDEOS_AUTO automáticos (los extra pasan a "tocar para ver")
+    const autosAntes = arr.slice(0, i).filter(x => x.auto).length;
+    return v.auto && autosAntes >= LIMITES.VIDEOS_AUTO ? { ...v, auto: false } : v;
+  });
+}
+
+// Versión liviana del video para los visitantes (720 px, calidad "eco", MP4 H.264).
+// Se genera una sola vez en Cloudinary y después queda guardada.
+const CLD_VIDEO        = 'c_limit,w_720,q_auto:eco,vc_h264';
+const CLD_VIDEO_POSTER = 'so_1,c_limit,w_720,q_auto';
+function cldVideoUrl(src, transf, ext){
+  if(typeof src !== 'string' || !src.includes('res.cloudinary.com') || !src.includes('/video/upload/')) return src;
+  let out = src.replace('/upload/', `/upload/${transf}/`);
+  if(ext) out = out.replace(/\.[a-z0-9]+(\?.*)?$/i, '.' + ext);
+  return out;
+}
+
+// Cada item: { url, pos, auto } (ya subido) o { file, preview, pos, auto } (pendiente)
+let videosEditando = [];
+
+function agregarVideoInicio(e){
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  if(videosEditando.length >= LIMITES.VIDEOS_INICIO){
+    alert(`Ya hay ${LIMITES.VIDEOS_INICIO} videos. Eliminá uno para agregar otro.`);
+    return;
+  }
+  const err = validarArchivoVideo(file);
+  if(err){ alert(err); return; }
+  if(file.size > LIMITES.VIDEO_AVISO_BYTES &&
+     !confirm(`El video pesa ${formatoMB(file.size)}. Se puede subir, pero conviene que sea corto y liviano (menos de ${formatoMB(LIMITES.VIDEO_AVISO_BYTES)}).\n\n¿Subirlo igual?`)){
+    return;
+  }
+  // Por defecto: "tocar para ver" (es lo que menos gasta del plan)
+  videosEditando.push({ file, preview: URL.createObjectURL(file), pos: POS_VIDEO_DEFAULT, auto: false });
+  renderListaVideosEP();
+}
+
+function quitarVideoInicio(i){
+  const v = videosEditando[i];
+  if(v && v.preview) URL.revokeObjectURL(v.preview);
+  videosEditando.splice(i, 1);
+  renderListaVideosEP();
+}
+
+function cambiarAutoVideo(i, auto){
+  if(!videosEditando[i]) return;
+  const yaAuto = videosEditando.filter((v, k) => k !== i && v.auto).length;
+  if(auto && yaAuto >= LIMITES.VIDEOS_AUTO){
+    alert('Solo 1 video puede reproducirse automáticamente.\n\nPor la cuota del plan gratuito (Cloudinary, donde se alojan los videos), no se pueden poner 2 o más videos automáticos. Desmarcá "Reproducir solo" en el otro video si querés cambiarlo.');
+    renderListaVideosEP();
+    return;
+  }
+  videosEditando[i].auto = auto;
+  renderListaVideosEP();
+}
+
+function renderListaVideosEP(){
+  const lista = document.getElementById('ep-videos-lista');
+  if(!lista) return;
+  asignarNumerosVideos(videosEditando);
+  const n = videosEditando.length;
+  const hayAuto = videosEditando.filter(v => v.auto).length >= LIMITES.VIDEOS_AUTO;
+  lista.innerHTML = videosEditando.map((v, i) => `
+    <div class="ep-video-item">
+      ${miniaturaVideo(v)}
+      ${v.file ? '<span class="ep-video-pendiente">NUEVO</span>' : ''}
+      <button type="button" class="foto-thumb-remove" title="Quitar video" onclick="quitarVideoInicio(${i})">×</button>
+      <small><strong>Video ${v.num}</strong>${v.file ? ' · ' + esc(formatoMB(v.file.size)) : ''}</small>
+      <div class="ep-video-pos" title="Para cambiarlo usá «Acomodar videos en la página»">📍 ${esc(etiquetaPosVideo(v.pos))}</div>
+      <label class="ep-video-auto${!v.auto && hayAuto ? ' bloqueado' : ''}" title="${!v.auto && hayAuto ? 'Ya hay 1 video automático (máximo permitido por la cuota del plan gratuito)' : ''}"><input type="checkbox" ${v.auto ? 'checked' : ''} onchange="cambiarAutoVideo(${i}, this.checked)"> Reproducir solo</label>
+    </div>`).join('');
+  const btnAcomodar = document.getElementById('ep-btn-acomodar');
+  if(btnAcomodar) btnAcomodar.style.display = n ? '' : 'none';
+  const lleno = n >= LIMITES.VIDEOS_INICIO;
+  const label = document.getElementById('ep-video-label');
+  if(label) label.classList.toggle('deshabilitado', lleno);
+  const txt = document.getElementById('ep-video-texto');
+  if(txt) txt.textContent = lleno
+    ? `Máximo alcanzado (${LIMITES.VIDEOS_INICIO} de ${LIMITES.VIDEOS_INICIO}) — quitá uno para agregar otro`
+    : `Hacé clic para agregar un video (${n} de ${LIMITES.VIDEOS_INICIO})`;
+}
+
+// ════════════════════════════════════════════════════════
+//  ACOMODAR VIDEOS — ventana con un esquema visual de la página.
+//  Se arrastran (compu) o se tocan (celular) los videos para ubicarlos.
+//  Se trabaja sobre una copia: "Aplicar" la confirma, "Cancelar" la descarta.
+// ════════════════════════════════════════════════════════
+let layoutDraft = [];
+let layoutSel = null;    // índice del video seleccionado (modo tocar)
+let layoutDrag = null;   // índice del video que se está arrastrando
+
+// Número fijo de cada video ("Video 1/2/3") para que no cambie al moverlo
+function asignarNumerosVideos(lista){
+  const usados = new Set(lista.filter(v => v.num).map(v => v.num));
+  lista.forEach(v => {
+    if(v.num) return;
+    let n = 1;
+    while(usados.has(n)) n++;
+    v.num = n;
+    usados.add(n);
+  });
+  return lista;
+}
+
+function etiquetaPosVideo(pos){
+  const p = POSICIONES_VIDEO.find(x => x.id === pos);
+  return p ? p.label : '';
+}
+
+function miniaturaVideo(v){
+  return v.file
+    ? `<video src="${esc(v.preview)}" muted playsinline preload="metadata"></video>`
+    : `<img src="${esc(cldVideoUrl(v.url, CLD_VIDEO_POSTER, 'jpg'))}" alt="" draggable="false">`;
+}
+
+function abrirAcomodarVideos(){
+  if(!videosEditando.length){ alert('Primero agregá al menos un video.'); return; }
+  layoutDraft = videosEditando.map(v => ({ ...v }));
+  layoutSel = null;
+  renderEsquemaVideos();
+  document.getElementById('video-layout-modal').classList.add('active');
+}
+
+function cerrarAcomodarVideos(aplicar){
+  if(aplicar){
+    videosEditando = layoutDraft.map(v => ({ ...v }));
+    renderListaVideosEP();
+  }
+  layoutDraft = [];
+  layoutSel = null;
+  document.getElementById('video-layout-modal').classList.remove('active');
+}
+
+// Mueve el video idx a la posición pos. Si se indica antesDe (índice de otro
+// video), queda justo antes de él; si no, queda último en esa posición.
+function moverVideoEnEsquema(idx, pos, antesDe){
+  if(idx == null || !layoutDraft[idx] || idx === antesDe) return;
+  const item = layoutDraft[idx];
+  const ref = antesDe != null ? layoutDraft[antesDe] : null;
+  layoutDraft.splice(idx, 1);
+  item.pos = pos;
+  let destino;
+  if(ref){
+    destino = layoutDraft.indexOf(ref);
+  } else {
+    let ultimo = -1;
+    layoutDraft.forEach((v, k) => { if(v.pos === pos) ultimo = k; });
+    destino = ultimo === -1 ? layoutDraft.length : ultimo + 1;
+  }
+  layoutDraft.splice(destino, 0, item);
+  layoutSel = null;
+  renderEsquemaVideos();
+}
+
+function chipVideoHTML(v, idx){
+  return `<div class="vl-chip${layoutSel === idx ? ' seleccionado' : ''}" draggable="true" data-idx="${idx}"
+      title="Arrastralo (o tocalo y después tocá dónde ponerlo)">
+    <div class="vl-chip-img">${miniaturaVideo(v)}</div>
+    <div class="vl-chip-txt">
+      <strong>Video ${v.num}</strong>
+      <span>${v.auto ? '▶ Se reproduce solo' : 'Tocar para ver'}</span>
+    </div>
+    <span class="vl-chip-grip" aria-hidden="true">⠿</span>
+  </div>`;
+}
+
+function zonaVideosHTML(pos){
+  const items = layoutDraft.map((v, i) => ({ v, i })).filter(x => x.v.pos === pos);
+  return `<div class="vl-zona${items.length ? ' con-videos' : ''}${layoutSel != null ? ' esperando' : ''}" data-pos="${pos}">
+    ${items.map(x => chipVideoHTML(x.v, x.i)).join('')}
+    <div class="vl-zona-hint">${layoutSel != null ? '⬇ Tocá acá para poner el video' : (items.length ? 'Soltá acá para agregar otro' : 'Soltá un video acá')}</div>
+  </div>`;
+}
+
+function renderEsquemaVideos(){
+  const cont = document.getElementById('vl-esquema');
+  if(!cont) return;
+  cont.innerHTML = `
+    <div class="vl-bloque vl-nav">Barra de menú</div>
+    <div class="vl-bloque vl-hero"><span>Título principal</span><small>Portada de la página</small></div>
+    ${zonaVideosHTML('hero')}
+    <div class="vl-bloque vl-nos"><span>Nosotros</span><div class="vl-nos-fig"><i></i><b></b></div></div>
+    ${zonaVideosHTML('nosotros')}
+    <div class="vl-bloque vl-prod"><span>Productos</span><div class="vl-prod-grid"><i></i><i></i><i></i><i></i></div></div>
+    ${zonaVideosHTML('productos')}
+    <div class="vl-bloque vl-cont"><span>Contacto</span></div>
+    ${zonaVideosHTML('final')}
+    <div class="vl-bloque vl-pie">Pie de página</div>`;
+
+  // ── Tocar: seleccionar un video y después tocar dónde va ──
+  cont.querySelectorAll('.vl-chip').forEach(chip => {
+    const idx = Number(chip.dataset.idx);
+    chip.addEventListener('click', e => {
+      e.stopPropagation();
+      if(layoutSel === null || layoutSel === idx){
+        layoutSel = layoutSel === idx ? null : idx;
+        renderEsquemaVideos();
+      } else {
+        // con otro seleccionado: se ubica justo antes de este
+        moverVideoEnEsquema(layoutSel, layoutDraft[idx].pos, idx);
+      }
+    });
+    // ── Arrastrar (compu) ──
+    chip.addEventListener('dragstart', e => {
+      layoutDrag = idx;
+      chip.classList.add('arrastrando');
+      try { e.dataTransfer.setData('text/plain', String(idx)); e.dataTransfer.effectAllowed = 'move'; } catch(err) {}
+    });
+    chip.addEventListener('dragend', () => {
+      layoutDrag = null;
+      chip.classList.remove('arrastrando');
+      cont.querySelectorAll('.sobre').forEach(el => el.classList.remove('sobre'));
+    });
+    chip.addEventListener('dragover', e => { if(layoutDrag !== null){ e.preventDefault(); e.stopPropagation(); chip.classList.add('sobre'); } });
+    chip.addEventListener('dragleave', () => chip.classList.remove('sobre'));
+    chip.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation();
+      const desde = layoutDrag;
+      layoutDrag = null;
+      moverVideoEnEsquema(desde, layoutDraft[idx].pos, idx);
+    });
+  });
+
+  cont.querySelectorAll('.vl-zona').forEach(zona => {
+    const pos = zona.dataset.pos;
+    zona.addEventListener('click', () => { if(layoutSel !== null) moverVideoEnEsquema(layoutSel, pos, null); });
+    zona.addEventListener('dragover', e => { if(layoutDrag !== null){ e.preventDefault(); zona.classList.add('sobre'); } });
+    zona.addEventListener('dragleave', e => { if(!zona.contains(e.relatedTarget)) zona.classList.remove('sobre'); });
+    zona.addEventListener('drop', e => {
+      e.preventDefault();
+      const desde = layoutDrag;
+      layoutDrag = null;
+      moverVideoEnEsquema(desde, pos, null);
+    });
+  });
+
+  const ayuda = document.getElementById('vl-ayuda-sel');
+  if(ayuda){
+    ayuda.textContent = layoutSel !== null
+      ? `Video ${layoutDraft[layoutSel].num} seleccionado: tocá el lugar de la página donde lo querés poner (o tocalo de nuevo para soltarlo).`
+      : '';
+    ayuda.style.display = layoutSel !== null ? 'block' : 'none';
+  }
+}
+
+// Arma el HTML de un video para la página pública.
+// · auto: se reproduce solo, sin sonido, en bucle, y SOLO cuando está en pantalla.
+// · al tocar: muestra una imagen de portada liviana; el video se descarga recién al tocar play.
+function htmlVideoCard(v){
+  const liviano  = cldVideoUrl(v.url, CLD_VIDEO, 'mp4');
+  const poster   = cldVideoUrl(v.url, CLD_VIDEO_POSTER, 'jpg');
+  // Si la versión liviana todavía no está lista, el navegador usa el original
+  const fuentes = `<source data-src="${esc(liviano)}" type="video/mp4"><source data-src="${esc(v.url)}">`;
+  if(v.auto){
+    return `<div class="video-card" data-auto="1">
+      <video muted loop playsinline preload="none" poster="${esc(poster)}">${fuentes}</video>
+      <button type="button" class="video-sonido" title="Activar sonido" aria-label="Activar sonido">🔇</button>
+    </div>`;
+  }
+  return `<div class="video-card">
+    <video playsinline preload="none" poster="${esc(poster)}">${fuentes}</video>
+    <button type="button" class="video-play" aria-label="Reproducir video"><span>▶</span></button>
+  </div>`;
+}
+
+function cargarFuentesVideo(video){
+  if(video.dataset.cargado) return;
+  video.dataset.cargado = '1';
+  video.querySelectorAll('source[data-src]').forEach(s => { s.src = s.dataset.src; });
+  video.load();
+}
+
+let videosRenderKey = null;
+let videosObserver = null;
+function renderVideosInicio(){
+  const secciones = document.querySelectorAll('.videos-section[data-pos]');
+  if(!secciones.length) return;
+  const videos = normalizarVideos(SITE_CONFIG._videosInicio)
+    .filter(v => v.url.startsWith('https://res.cloudinary.com/'))
+    .slice(0, LIMITES.VIDEOS_INICIO);
+  const key = JSON.stringify(videos);
+  if(key === videosRenderKey) return;
+  videosRenderKey = key;
+  if(videosObserver){ videosObserver.disconnect(); videosObserver = null; }
+
+  secciones.forEach(sec => {
+    const grid = sec.querySelector('.videos-grid');
+    const propios = videos.filter(v => v.pos === sec.dataset.pos);
+    grid.innerHTML = propios.map(htmlVideoCard).join('');
+    sec.style.display = propios.length ? '' : 'none';
+  });
+
+  const autos = [];
+  document.querySelectorAll('.videos-section .video-card').forEach(card => {
+    const video = card.querySelector('video');
+    const btnSonido = card.querySelector('.video-sonido');
+    const btnPlay = card.querySelector('.video-play');
+    if(btnSonido){
+      btnSonido.addEventListener('click', () => {
+        video.muted = !video.muted;
+        btnSonido.textContent = video.muted ? '🔇' : '🔊';
+        btnSonido.title = video.muted ? 'Activar sonido' : 'Silenciar';
+        if(video.paused) video.play().catch(() => {});
+      });
+    }
+    if(btnPlay){
+      btnPlay.addEventListener('click', () => {
+        cargarFuentesVideo(video);
+        video.controls = true;
+        card.classList.add('reproduciendo');
+        video.play().catch(() => {});
+      });
+    }
+    if(card.dataset.auto) autos.push(video);
+  });
+
+  // Los automáticos se descargan/reproducen solo cuando están en pantalla
+  const activar = video => { cargarFuentesVideo(video); video.play().catch(() => {}); };
+  if(!autos.length) return;
+  if(!('IntersectionObserver' in window)){ autos.forEach(activar); return; }
+  videosObserver = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      if(en.isIntersecting) activar(en.target);
+      else if(!en.target.paused) en.target.pause();
+    });
+  }, { rootMargin: '200px 0px', threshold: 0.15 });
+  autos.forEach(v => videosObserver.observe(v));
 }
 
 // ════════════════════════════════════════════════════════
