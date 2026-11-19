@@ -323,7 +323,8 @@
 <div id="admin-bar" class="admin-bar" style="display:none">
   <div class="admin-badge">
     <span class="dot-live"></span>
-    Modo Administrador — <span id="admin-badge-nombre"></span>
+    <span class="badge-normal">Modo Administrador — <span id="admin-badge-nombre"></span></span>
+    <span class="badge-borrador" title="Los cambios NO se ven en la página hasta que toques Publicar">Borrador · no visible al público</span>
   </div>
   <div class="admin-actions">
     <button class="btn-admin-add" onclick="abrirModalAgregar()">+ Agregar producto</button>
@@ -332,7 +333,20 @@
     <button class="btn-admin-reset" onclick="abrirModalMarquee()">📢 Cinta Promocional</button>
     <button class="btn-admin-reset" onclick="abrirModalEditarPagina()">✏ Editar página</button>
     <button class="btn-admin-reset" onclick="abrirModalHerramientas()">⚙ Herramientas</button>
+    <!-- Solo en ?admin, para la cuenta que publica -->
+    <button class="btn-admin-reset solo-publico" id="btn-ir-borrador" onclick="irABorrador()" style="display:none">📝 Ir al borrador</button>
     <button onclick="logoutAdmin()">Salir</button>
+  </div>
+</div>
+
+<!-- PANEL DEL BORRADOR (solo ?admin2, con sesión iniciada) -->
+<div class="borrador-panel" id="borrador-panel">
+  <div class="borrador-panel-titulo">📝 Borrador <small>no visible al público</small></div>
+  <div class="borrador-aviso" id="borrador-aviso" style="display:none">⚠ La página publicada se modificó después de que empezaste este borrador. Si publicás, esos cambios se pisan.</div>
+  <div class="borrador-panel-botones">
+    <button type="button" class="bp-sec" onclick="verPaginaPublicada()" title="Abre la página que ven los visitantes en otra pestaña">👁 Ver publicada</button>
+    <button type="button" class="bp-sec" onclick="descartarBorrador()" title="Vuelve el borrador a como está la página publicada">↺ Descartar</button>
+    <button type="button" class="bp-pub" id="btn-publicar-borrador" onclick="publicarBorrador()">🚀 Publicar en la página</button>
   </div>
 </div>
 

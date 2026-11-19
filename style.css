@@ -305,18 +305,21 @@
 
 
   /* VIDEOS (página principal) */
-.videos-section{background:var(--cream);padding-top:3rem;padding-bottom:3rem}
-.videos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,340px));justify-content:center;gap:1.5rem}
-.video-card{position:relative;border-radius:4px;overflow:hidden;background:#000;box-shadow:0 10px 25px rgba(0,0,0,0.12)}
-.video-card video{display:block;width:100%;height:auto;max-height:75vh;object-fit:cover;background:#000}
+/* position/z-index: tapa los círculos decorativos fijos de la portada (igual que las demás secciones) */
+.videos-section{position:relative;z-index:1;background:var(--cream);padding-top:3rem;padding-bottom:3rem}
+/* Siempre uno debajo del otro y centrados (aunque haya varios en el mismo lugar) */
+.videos-grid{display:flex;flex-direction:column;align-items:center;gap:2rem}
+.video-card{position:relative;width:fit-content;max-width:100%;margin:0 auto;border-radius:4px;overflow:hidden;background:#000;box-shadow:0 10px 25px rgba(0,0,0,0.12)}
+/* El video conserva su forma (vertical u horizontal): nunca más ancho que la pantalla ni más alto que el 75% de ella */
+.video-card video{display:block;width:auto;height:auto;max-width:min(720px, calc(100vw - 2.5rem));max-height:75vh;object-fit:contain;background:#000}
 .video-play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;border:none;background:rgba(0,0,0,0.18);cursor:pointer;padding:0}
 .video-play span{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,0.92);color:var(--principal);font-size:24px;line-height:64px;text-align:center;padding-left:5px;box-shadow:0 4px 14px rgba(0,0,0,0.25)}
 .video-card.reproduciendo .video-play{display:none}
-.video-card video[poster]{min-height:200px}
 .video-sonido{position:absolute;right:10px;bottom:10px;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,0.55);color:#fff;font-size:15px;line-height:34px;text-align:center;cursor:pointer;padding:0}
 @media (max-width:600px){
-  .videos-grid{grid-template-columns:minmax(0,1fr);gap:1rem}
-  .video-card{max-width:420px;margin:0 auto;width:100%}
+  .videos-section{padding-left:1rem;padding-right:1rem}
+  .videos-grid{gap:1.2rem}
+  .video-card video{max-width:calc(100vw - 2rem);max-height:70vh}
 }
 /* Lista de videos en el panel admin */
 .ep-videos-lista{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
@@ -1990,3 +1993,20 @@ body.marquee-active {
   .vl-overlay{padding:0.6rem}
   .vl-modal{padding:1.4rem 1rem}
 }
+
+
+/* ════════ MODO BORRADOR (?admin2) ════════ */
+.badge-borrador,body.modo-borrador .badge-normal{display:none !important}
+body.modo-borrador .badge-borrador{display:inline !important;white-space:nowrap}
+body.modo-borrador .admin-bar{background:#7a3d00 !important}
+body.modo-borrador .admin-badge span.dot-live{background:#ffb347}
+.borrador-panel{display:none;position:fixed;left:16px;bottom:16px;z-index:250;width:300px;max-width:calc(100vw - 32px);background:#fff;border:2px solid #e08a1e;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.22);padding:12px;font-family:var(--font-cuerpo),sans-serif}
+body.admin.modo-borrador .borrador-panel{display:block}
+.borrador-panel-titulo{font-size:13px;font-weight:700;color:#7a3d00;margin-bottom:8px}
+.borrador-panel-titulo small{font-weight:400;color:#a0672c;font-size:11px;margin-left:4px}
+.borrador-aviso{background:#fff1dc;border:1px solid #f0b46a;color:#5c2c00;font-size:11px;line-height:1.4;padding:6px 8px;border-radius:4px;margin-bottom:8px}
+.borrador-panel-botones{display:flex;flex-wrap:wrap;gap:6px}
+.borrador-panel button{border-radius:4px;cursor:pointer;font-size:12px;padding:8px 10px;font-family:inherit}
+.borrador-panel .bp-sec{flex:1;background:#fff;border:1px solid #e0c3a3;color:#7a3d00}
+.borrador-panel .bp-pub{flex:1 1 100%;background:#e08a1e;border:none;color:#fff;font-weight:700;font-size:13px;padding:10px}
+.borrador-panel .bp-pub:disabled{opacity:.6;cursor:wait}

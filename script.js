@@ -3,13 +3,45 @@
 // ════════════════════════════════════════════════════════
 firebase.initializeApp(SITE_CONFIG.firebase);
 const db = firebase.firestore();
+// ── MODO BORRADOR (?admin2) ──────────────────────────────
+// Con ?admin2 todo se lee y se guarda en la colección "borrador" (una copia
+// de la página). Los visitantes siempre leen "catalogo". El botón
+// "Publicar" copia el borrador a "catalogo".
+const BORRADOR = new URLSearchParams(location.search).has('admin2');
+// Cuentas que pueden usar el borrador y publicar. Se guarda el SHA-256 del
+// mail (no el mail en sí) para que no quede visible en el código público.
+const PUBLICADORES_HASH = [
+  'f9665e98bce3b63e11f20877947d2c477c1e6e8d5d2eeefbbddfa5babda6d55a'
+];
+let ES_PUBLICADOR = null;   // se calcula al iniciar sesión
+let resolverBorradorListo;
+const BORRADOR_LISTO = new Promise(r => { resolverBorradorListo = r; });
+// En el borrador, las cachés del navegador van con otro nombre para no
+// mezclarse con las de la página publicada.
+const LS = k => BORRADOR ? 'borrador_' + k : k;
+
+function refsDe(raiz){
+  const c = db.collection(raiz);
+  return {
+    prods:   c.doc('productos').collection('items'),
+    meta:    c.doc('_meta'),
+    indice:  c.doc('_indice'),
+    config:  c.doc('siteConfig'),
+    marquee: c.doc('marquee')
+  };
+}
+const REFS_PUBLICO  = refsDe('catalogo');
+const REFS_BORRADOR = refsDe('borrador');
+const REFS = BORRADOR ? REFS_BORRADOR : REFS_PUBLICO;
+const ESTADO_BORRADOR_REF = db.collection('borrador').doc('_estado');
+
 // Cada producto es un documento en la subcolección "productos"
-// La metadata (categorías, orden, etc.) va en un doc separado "__meta__"
-const PRODS_COL = db.collection('catalogo').doc('productos').collection('items');
-const META_REF  = db.collection('catalogo').doc('_meta');
+// La metadata (categorías, orden, etc.) va en un doc separado "_meta"
+const PRODS_COL = REFS.prods;
+const META_REF  = REFS.meta;
 // UN solo documento con TODO el catálogo público (solo texto + URLs de Cloudinary).
 // Los visitantes leen solo este doc → ~4 lecturas por visita en vez de 1 por producto.
-const INDICE_REF = db.collection('catalogo').doc('_indice');
+const INDICE_REF = REFS.indice;
 // {cloudName, preset} de Cloudinary — solo legible por admins (ver reglas de Firestore)
 const CLOUDINARY_REF = db.collection('privado').doc('cloudinary');
 const auth = firebase.auth();
@@ -27,7 +59,17 @@ auth.onAuthStateChanged(user => {
     // Sesión ya iniciada de antes → no hace falta volver a pedir el login
     const loginModal = document.getElementById('login-modal');
     if(loginModal) loginModal.classList.remove('active');
-    if(!yaEraAdmin) iniciarSincronizacionAdmin().catch(() => {});
+    if(BORRADOR){
+      arrancarBorrador(user);
+    } else {
+      if(!yaEraAdmin) iniciarSincronizacionAdmin().catch(() => {});
+      // En ?admin, a la cuenta que puede publicar se le muestra el acceso al borrador
+      calcularEsPublicador(user).then(ok => {
+        ES_PUBLICADOR = ok;
+        const b = document.getElementById('btn-ir-borrador');
+        if(b) b.style.display = ok ? '' : 'none';
+      });
+    }
   } else if(user && !ADMIN_REQUEST){
     // Sesión activa pero URL normal → cerrar sesión silenciosamente
     auth.signOut();
@@ -71,7 +113,7 @@ let ordenCategorias = {};
 let productosOcultos = [];  // IDs de productos ocultos individualmente
 
 const params = new URLSearchParams(location.search);
-const ADMIN_REQUEST = params.has('admin');
+const ADMIN_REQUEST = params.has('admin') || BORRADOR;
 let ADMIN_MODE = false;
 
 let marqueeConfig = {
@@ -278,11 +320,11 @@ async function cargarDesdeFirebase(){
 
       // ── Invalidación de caché por timestamp ──────────────────
       const serverTs = m.lastModified || 0;
-      const localTs  = Number(localStorage.getItem('cache_ts') || '0');
+      const localTs  = Number(localStorage.getItem(LS('cache_ts')) || '0');
       if(serverTs > localTs){
         try {
-          localStorage.removeItem('meta_cache');
-          localStorage.removeItem('config_cache');
+          localStorage.removeItem(LS('meta_cache'));
+          localStorage.removeItem(LS('config_cache'));
         } catch(e) {}
       }
 
@@ -367,7 +409,7 @@ async function commitCambios(ops = []){
     indiceVersion: FV.delete()
   }, { merge: true });
   await batch.commit();
-  try { localStorage.setItem('cache_ts', String(ts)); } catch(e) {}
+  try { localStorage.setItem(LS('cache_ts'), String(ts)); } catch(e) {}
   if(!indice){
     mostrarToastError('⚠ El catálogo todavía tiene fotos guardadas dentro de la base (formato viejo).<br>Andá a ⚙ Herramientas → "Migrar fotos a Cloudinary".', 12000);
   }
@@ -385,10 +427,10 @@ async function guardarMetaEnFirebase(){
     lastModified: ts
   }, { merge: true });
   try {
-    localStorage.setItem('meta_cache', JSON.stringify({
+    localStorage.setItem(LS('meta_cache'), JSON.stringify({
       categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos
     }));
-    localStorage.setItem('cache_ts', String(ts));
+    localStorage.setItem(LS('cache_ts'), String(ts));
   } catch(e) {}
 }
 
@@ -661,7 +703,8 @@ async function submitLogin(){
     document.getElementById('admin-bar').style.display = 'flex';
     posicionarNavYMarquee();
     buildAllCarousels(); // reconstruir cards con botones de admin
-    iniciarSincronizacionAdmin().catch(() => {});
+    if(BORRADOR) arrancarBorrador(auth.currentUser);
+    else iniciarSincronizacionAdmin().catch(() => {});
   } catch {
     errorEl.textContent = 'Credenciales incorrectas. Intentá de nuevo.';
     btn.textContent = 'Ingresar';
@@ -690,7 +733,7 @@ async function inicializar(){
 
   // Cargar metadata cacheada ANTES de buildAllCarousels — orden de categorías correcto
   try {
-    const metaCache = localStorage.getItem('meta_cache');
+    const metaCache = localStorage.getItem(LS('meta_cache'));
     if (metaCache) {
       const m = JSON.parse(metaCache);
       categoriasOcultas = Array.isArray(m.categoriasOcultas) ? m.categoriasOcultas : [];
@@ -711,7 +754,7 @@ async function inicializar(){
     });
     // Guardar metadata en caché (no los productos) para el orden de categorías
     try {
-      localStorage.setItem('meta_cache', JSON.stringify({
+      localStorage.setItem(LS('meta_cache'), JSON.stringify({
         categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos
       }));
     } catch(e) {}
@@ -722,7 +765,7 @@ async function inicializar(){
       await new Promise(r => setTimeout(r, 1200));
       productos = await cargarDesdeFirebase();
       try {
-        localStorage.setItem('meta_cache', JSON.stringify({
+        localStorage.setItem(LS('meta_cache'), JSON.stringify({
           categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos
         }));
       } catch(e) {}
@@ -759,7 +802,7 @@ function mostrarErrorCarga(){
 document.addEventListener('DOMContentLoaded', async () => {
   // Aplicar config desde caché inmediatamente si existe
   try {
-    const configCache = localStorage.getItem('config_cache');
+    const configCache = localStorage.getItem(LS('config_cache'));
     if (configCache) {
       const data = JSON.parse(configCache);
       if(data.rubro)         SITE_CONFIG.rubro         = data.rubro;
@@ -789,19 +832,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Productos, Contacto, Footer). No depende de Firebase.
   initScrollReveal();
 
+  // Carrito guardado de una visita anterior
+  cargarCarritoLocal();
+
+  // En el borrador, los datos se leen recién después de iniciar sesión
+  // (la colección "borrador" solo la pueden leer los administradores).
+  if(BORRADOR){
+    document.body.classList.add('modo-borrador');
+    await BORRADOR_LISTO;
+  }
+
   // Firebase carga en segundo plano, nunca bloquea la UI ni la animación
   cargarConfigEditable().then(data => {
     if (data) {
-      try { localStorage.setItem('config_cache', JSON.stringify(data)); } catch(e) {}
+      try { localStorage.setItem(LS('config_cache'), JSON.stringify(data)); } catch(e) {}
       applyConfig();
     }
   }).catch(() => {});
 
   // Agregamos la orden para que traiga los banners apenas entras a la página
   cargarMarqueeConfig();
-
-  // Carrito guardado de una visita anterior
-  cargarCarritoLocal();
 
   inicializar();
 });
@@ -2447,8 +2497,8 @@ Esta acción no se puede deshacer.` : '');
 // ════════════════════════════════════════════════════════
 
 // Referencia a la config editable (persiste en Firebase)
-const CONFIG_REF = db.collection('catalogo').doc('siteConfig');
-const MARQUEE_REF = db.collection('catalogo').doc('marquee');
+const CONFIG_REF = REFS.config;
+const MARQUEE_REF = REFS.marquee;
 
 // Imagen nosotros pendiente de guardar (base64)
 let nosotrosImgPendiente = null;
@@ -2730,8 +2780,8 @@ async function guardarEditarPagina(){
     // Invalidar caché de otros dispositivos
     await META_REF.set({ lastModified: ts }, { merge: true });
     try {
-      localStorage.setItem('cache_ts', String(ts));
-      localStorage.setItem('config_cache', JSON.stringify(data));
+      localStorage.setItem(LS('cache_ts'), String(ts));
+      localStorage.setItem(LS('config_cache'), JSON.stringify(data));
     } catch(e) {}
 
     // ── 4) Aplicar en vivo a la página (incluye logos e imagen de Nosotros) ──
@@ -3101,6 +3151,146 @@ function renderVideosInicio(){
   }, { rootMargin: '200px 0px', threshold: 0.15 });
   autos.forEach(v => videosObserver.observe(v));
 }
+
+// ════════════════════════════════════════════════════════
+//  MODO BORRADOR (?admin2)
+//  Los cambios se guardan en la colección "borrador" (copia de la página).
+//  Los visitantes siguen viendo "catalogo" hasta que se toca "Publicar".
+// ════════════════════════════════════════════════════════
+function esPublicadorSync(){ return ES_PUBLICADOR === true; }
+
+async function calcularEsPublicador(user){
+  try {
+    if(!user || !user.email || !(window.crypto && crypto.subtle)) return false;
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(user.email.trim().toLowerCase()));
+    const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    return PUBLICADORES_HASH.includes(hex);
+  } catch(e){ return false; }
+}
+
+// Copia TODO (productos, _meta, _indice, siteConfig, marquee) de una raíz a otra.
+// Lo que exista en destino y no en origen se borra, así quedan idénticas.
+async function copiarDatosEntre(origen, destino, onProgreso){
+  const ts = Date.now();
+  const [items, itemsDest, meta, indice, config, marquee] = await Promise.all([
+    origen.prods.get({ source: 'server' }),
+    destino.prods.get({ source: 'server' }),
+    origen.meta.get({ source: 'server' }),
+    origen.indice.get({ source: 'server' }),
+    origen.config.get({ source: 'server' }),
+    origen.marquee.get({ source: 'server' })
+  ]);
+  const idsOrigen = new Set(items.docs.map(d => d.id));
+  const ops = [];
+  itemsDest.docs.forEach(d => { if(!idsOrigen.has(d.id)) ops.push(b => b.delete(d.ref)); });
+  items.docs.forEach(d => ops.push(b => b.set(destino.prods.doc(d.id), d.data())));
+  const docs = [
+    [meta,    destino.meta,    data => ({ ...data, lastModified: ts })],
+    [indice,  destino.indice,  data => ({ ...data, lastModified: ts })],
+    [config,  destino.config,  data => data],
+    [marquee, destino.marquee, data => data]
+  ];
+  docs.forEach(([snap, ref, transformar]) => {
+    ops.push(b => snap.exists ? b.set(ref, transformar(snap.data())) : b.delete(ref));
+  });
+  // Si el origen no tenía _meta, igual se marca el cambio para invalidar cachés
+  if(!meta.exists) ops.push(b => b.set(destino.meta, { lastModified: ts }, { merge: true }));
+
+  const LOTE = 400;
+  for(let i = 0; i < ops.length; i += LOTE){
+    const b = db.batch();
+    ops.slice(i, i + LOTE).forEach(op => op(b));
+    await b.commit();
+    if(onProgreso) onProgreso(Math.min(i + LOTE, ops.length), ops.length);
+  }
+  return ts;
+}
+
+async function lastModifiedPublicado(){
+  const s = await REFS_PUBLICO.meta.get({ source: 'server' });
+  return s.exists ? (s.data().lastModified || 0) : 0;
+}
+
+// Se llama al iniciar sesión en ?admin2. Si no existe el borrador, se crea
+// como copia exacta de la página publicada.
+async function prepararBorrador(user){
+  ES_PUBLICADOR = await calcularEsPublicador(user);
+  if(!ES_PUBLICADOR){
+    alert('El modo borrador (?admin2) es solo para el administrador técnico.\n\nVas a entrar al modo administrador normal.');
+    location.href = location.pathname + '?admin';
+    return new Promise(() => {});   // no sigue cargando
+  }
+  const estado = await ESTADO_BORRADOR_REF.get({ source: 'server' });
+  if(!estado.exists){
+    mostrarToast('Creando el borrador (copia de la página publicada)…');
+    const base = await lastModifiedPublicado();
+    await copiarDatosEntre(REFS_PUBLICO, REFS_BORRADOR);
+    await ESTADO_BORRADOR_REF.set({ baseTs: base, creado: Date.now() });
+  }
+  actualizarAvisoBorrador().catch(() => {});
+}
+
+// Arranca el borrador una sola vez (se llama desde el login y desde la sesión guardada)
+let borradorArrancado = false;
+function arrancarBorrador(user){
+  if(borradorArrancado || !user) return;
+  borradorArrancado = true;
+  prepararBorrador(user).then(() => resolverBorradorListo()).catch(err => {
+    borradorArrancado = false;
+    console.error('Error preparando el borrador:', err);
+    mostrarToastError('⚠ No se pudo abrir el borrador. ¿Publicaste las reglas nuevas de Firestore?<br>' + esc(err && err.message ? err.message : ''), 15000);
+  });
+  iniciarSincronizacionAdmin().catch(() => {});
+}
+
+// Muestra en la barra si la página publicada cambió después de empezar el borrador
+async function actualizarAvisoBorrador(){
+  const el = document.getElementById('borrador-aviso');
+  if(!el) return;
+  const [estado, pubTs] = await Promise.all([ESTADO_BORRADOR_REF.get({ source: 'server' }), lastModifiedPublicado()]);
+  const baseTs = estado.exists ? (estado.data().baseTs || 0) : 0;
+  el.style.display = pubTs > baseTs ? '' : 'none';
+}
+
+async function publicarBorrador(){
+  if(!BORRADOR || !esPublicadorSync()) return;
+  const btn = document.getElementById('btn-publicar-borrador');
+  try {
+    const [estado, pubTs] = await Promise.all([ESTADO_BORRADOR_REF.get({ source: 'server' }), lastModifiedPublicado()]);
+    const baseTs = estado.exists ? (estado.data().baseTs || 0) : 0;
+    const msg = pubTs > baseTs
+      ? '⚠ ATENCIÓN: la página publicada se modificó DESPUÉS de que empezaste este borrador (por ejemplo, alguien editó desde ?admin).\n\nSi publicás, esos cambios se pierden y la página queda exactamente como este borrador.\n\n¿Publicar igual?'
+      : '¿Publicar el borrador?\n\nTodo lo que ves acá (productos, textos, videos, cinta, orden y categorías) pasa a la página que ven los visitantes.';
+    if(!confirm(msg)) return;
+    if(btn){ btn.disabled = true; btn.textContent = 'Publicando…'; }
+    const ts = await copiarDatosEntre(REFS_BORRADOR, REFS_PUBLICO, (n, t) => mostrarToast(`Publicando… ${n} de ${t}`));
+    await ESTADO_BORRADOR_REF.set({ baseTs: ts, publicado: ts }, { merge: true });
+    actualizarAvisoBorrador().catch(() => {});
+    mostrarToast('Publicado ✓ — los visitantes ya ven los cambios');
+  } catch(err){
+    console.error('Error publicando borrador:', err);
+    mostrarToastError('⚠ No se pudo publicar.<br>' + esc(err && err.message ? err.message : 'Revisá la conexión.'), 10000);
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = '🚀 Publicar en la página'; }
+  }
+}
+
+async function descartarBorrador(){
+  if(!BORRADOR || !esPublicadorSync()) return;
+  if(!confirm('¿Descartar el borrador?\n\nSe pierden los cambios que no publicaste y el borrador vuelve a quedar igual que la página publicada.')) return;
+  try {
+    mostrarToast('Descartando borrador…');
+    const base = await lastModifiedPublicado();
+    await copiarDatosEntre(REFS_PUBLICO, REFS_BORRADOR);
+    await ESTADO_BORRADOR_REF.set({ baseTs: base, creado: Date.now() });
+    location.reload();
+  } catch(err){
+    mostrarToastError('⚠ No se pudo descartar.<br>' + esc(err && err.message ? err.message : ''), 8000);
+  }
+}
+
+function verPaginaPublicada(){ window.open(location.pathname, '_blank'); }
+function irABorrador(){ location.href = location.pathname + '?admin2'; }
 
 // ════════════════════════════════════════════════════════
 //  Toast
@@ -4263,7 +4453,7 @@ async function migrarFotosACloudinary(){
         cambios[campo] = url;
       }
       await CONFIG_REF.set(cambios, { merge: true });
-      try { localStorage.removeItem('config_cache'); } catch(e) {}
+      try { localStorage.removeItem(LS('config_cache')); } catch(e) {}
     }
 
     toolsLog('Regenerando el catálogo público…');
