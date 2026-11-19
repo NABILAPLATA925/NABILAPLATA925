@@ -453,13 +453,41 @@ async function eliminarProductoEnFirebase(prodId){
 // Al entrar como admin se relee la colección completa (fuente de verdad) y se
 // regenera _indice. Repara el índice después de una restauración desde backup
 // o de ediciones hechas a mano en la consola de Firebase.
+// JSON con las claves ordenadas: dos objetos con el mismo contenido dan el mismo texto
+function jsonEstable(v){
+  if(Array.isArray(v)) return '[' + v.map(jsonEstable).join(',') + ']';
+  if(v && typeof v === 'object'){
+    return '{' + Object.keys(v).sort().filter(k => v[k] !== undefined)
+      .map(k => JSON.stringify(k) + ':' + jsonEstable(v[k])).join(',') + '}';
+  }
+  return JSON.stringify(v === undefined ? null : v);
+}
+
+async function indiceDesactualizado(){
+  try {
+    const [idx, meta] = await Promise.all([INDICE_REF.get({ source: 'server' }), META_REF.get({ source: 'server' })]);
+    if(!idx.exists || !meta.exists) return true;
+    const m = meta.data();
+    if(m.indice !== undefined || m.indiceVersion !== undefined) return true;          // campos viejos para limpiar
+    if(jsonEstable(m.categorias || []) !== jsonEstable(getCategorias())) return true;
+    const guardado = (idx.data().productos || []).slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const actual = productos.map(productoParaIndice).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    return jsonEstable(guardado) !== jsonEstable(actual);
+  } catch(e){
+    return true;   // ante la duda, se regenera
+  }
+}
+
 function iniciarSincronizacionAdmin(){
   if(ADMIN_SYNC) return ADMIN_SYNC;
   ADMIN_SYNC = (async () => {
     await CARGA_INICIAL;
     productos = await leerColeccionCompleta();
     buildAllCarousels();
-    await commitCambios([]);
+    // Solo se regenera el catálogo público si hace falta. Antes se guardaba
+    // siempre, y eso marcaba la página publicada como "modificada" con solo
+    // entrar al modo admin (falsa alarma en el borrador).
+    if(await indiceDesactualizado()) await commitCambios([]);
     const pendientes = contarFotosBase64() + fotosBase64DePagina().length;
     if(pendientes > 0){
       mostrarToastError(`⚠ Hay ${pendientes} foto${pendientes !== 1 ? 's' : ''} en formato viejo.<br>Andá a ⚙ Herramientas → "Migrar fotos a Cloudinary".`, 10000);
@@ -1034,7 +1062,9 @@ function initScrollReveal(){
   // depende de seguir bajando el scroll.
   const tituloProductos = document.querySelector('#productos .productos-header');
   const carruselesProductos = document.getElementById('carrousels-container');
+  const catNav = document.getElementById('cat-nav');   // carrusel de categorías: entre el título y los productos
   if(tituloProductos) tituloProductos.classList.add('reveal', 'reveal-up');
+  if(catNav) catNav.classList.add('reveal', 'reveal-up');
   if(carruselesProductos) carruselesProductos.classList.add('reveal', 'reveal-up');
 
   const productosSection = document.getElementById('productos');
@@ -1043,6 +1073,7 @@ function initScrollReveal(){
       entries.forEach(entry => {
         if(entry.isIntersecting){
           if(tituloProductos) tituloProductos.classList.add('reveal-visible');
+          if(catNav) catNav.classList.add('reveal-visible');
           if(carruselesProductos) carruselesProductos.classList.add('reveal-visible');
         }
         // NOTA: a propósito ya NO se remueve 'reveal-visible' acá.
@@ -1130,6 +1161,13 @@ function initScrollReveal(){
 // ════════════════════════════════════════════════════════
 //  HELPERS
 // ════════════════════════════════════════════════════════
+// true si TODAS las categorías del producto están ocultas (no se muestra en
+// ningún carrusel). Un producto sin categoría no cuenta como oculto.
+function productoEnCategoriaOculta(p){
+  const lista = (Array.isArray(p.tipos) ? p.tipos : [p.tipo]).filter(Boolean);
+  return lista.length > 0 && lista.every(c => categoriasOcultas.includes(c));
+}
+
 function getCatId(cat){
   return 'cat-' + cat.toLowerCase()
     .replace(/[áàâä]/g,'a').replace(/[éèêë]/g,'e')
@@ -1245,6 +1283,9 @@ function buildAllCarousels(){
   // pero los incluimos para que "todos" sea realmente TODOS)
   productos.forEach(p => {
     if(!idsYaAgregados.has(p.id)){
+      // Los de categorías ocultas no se muestran a los visitantes (en admin sí,
+      // para poder encontrarlos y editarlos)
+      if(!ADMIN_MODE && productoEnCategoriaOculta(p)) return;
       idsYaAgregados.add(p.id);
       prodsTodos.push(p);
     }
@@ -3449,6 +3490,27 @@ function htmlImagenDeco(v){
   </figure>`;
 }
 
+// Animación de entrada (la misma "reveal-up" del resto de la página).
+// Se anima UNA vez, igual que los carruseles: estos elementos se reconstruyen
+// junto con los carruseles y volver a ocultarlos podía dejarlos invisibles.
+let mediosRevealObserver = null;
+function revelarAlEntrar(el, delay){
+  el.classList.add('reveal', 'reveal-up');
+  if(delay) el.style.transitionDelay = delay + 's';
+  if(!('IntersectionObserver' in window)){ el.classList.add('reveal-visible'); return; }
+  if(!mediosRevealObserver){
+    mediosRevealObserver = new IntersectionObserver(entries => {
+      entries.forEach(en => {
+        if(en.isIntersecting){
+          en.target.classList.add('reveal-visible');
+          mediosRevealObserver.unobserve(en.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+  }
+  mediosRevealObserver.observe(el);
+}
+
 function cargarFuentesVideo(video){
   if(video.dataset.cargado) return;
   video.dataset.cargado = '1';
@@ -3482,8 +3544,11 @@ function renderVideosInicio(){
   slots.forEach(slot => {
     const grid = slot.querySelector('.videos-grid');
     const propios = elementos.filter(v => v.pos === slot.dataset.pos);
+    if(mediosRevealObserver) grid.querySelectorAll('.reveal').forEach(el => mediosRevealObserver.unobserve(el));
     grid.innerHTML = propios.map(v => v.tipo === 'imagen' ? htmlImagenDeco(v) : htmlVideoCard(v)).join('');
     slot.style.display = propios.length ? '' : 'none';
+    // Varios en el mismo lugar: entran uno detrás del otro
+    grid.querySelectorAll(':scope > .video-card, :scope > .deco-img').forEach((el, i) => revelarAlEntrar(el, i * 0.12));
   });
 
   const autos = [];
@@ -3577,6 +3642,47 @@ async function copiarDatosEntre(origen, destino, onProgreso){
   return ts;
 }
 
+// Huella (SHA-256) del CONTENIDO de una raíz: catálogo, metadatos, textos,
+// videos/imágenes y cinta. Ignora fechas, así un guardado sin cambios no cuenta.
+async function huellaDatos(refs){
+  const [indice, meta, config, marquee] = await Promise.all([
+    refs.indice.get({ source: 'server' }), refs.meta.get({ source: 'server' }),
+    refs.config.get({ source: 'server' }), refs.marquee.get({ source: 'server' })
+  ]);
+  const prods = indice.exists ? (indice.data().productos || []).slice().sort((a, b) => String(a.id).localeCompare(String(b.id))) : null;
+  const m = meta.exists ? { ...meta.data() } : {};
+  ['lastModified', 'indice', 'indiceVersion', 'categorias'].forEach(k => delete m[k]);
+  const texto = jsonEstable({
+    prods,
+    meta: m,
+    config: config.exists ? config.data() : null,
+    marquee: marquee.exists ? marquee.data() : null
+  });
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ¿La página publicada cambió desde que se empezó (o publicó) el borrador?
+async function publicadaCambio(){
+  const estado = await ESTADO_BORRADOR_REF.get({ source: 'server' });
+  const e = estado.exists ? estado.data() : {};
+  if(e.baseHuella) return (await huellaDatos(REFS_PUBLICO)) !== e.baseHuella;
+  // Borradores creados antes de este cambio: se compara por fecha
+  return (await lastModifiedPublicado()) > (e.baseTs || 0);
+}
+
+// "Ya lo revisé": toma la página publicada actual como punto de partida
+async function ignorarAvisoBorrador(){
+  if(!confirm('¿Ocultar el aviso?\n\nHacelo solo si ya revisaste la página publicada (botón «Ver publicada») y sabés que no hay cambios importantes que se vayan a perder al publicar.')) return;
+  try {
+    await ESTADO_BORRADOR_REF.set({ baseHuella: await huellaDatos(REFS_PUBLICO), baseTs: await lastModifiedPublicado() }, { merge: true });
+    actualizarAvisoBorrador().catch(() => {});
+    mostrarToast('Aviso ocultado ✓');
+  } catch(err){
+    mostrarToastError('⚠ No se pudo ocultar el aviso.<br>' + esc(err && err.message ? err.message : ''), 8000);
+  }
+}
+
 async function lastModifiedPublicado(){
   const s = await REFS_PUBLICO.meta.get({ source: 'server' });
   return s.exists ? (s.data().lastModified || 0) : 0;
@@ -3595,8 +3701,9 @@ async function prepararBorrador(user){
   if(!estado.exists){
     mostrarToast('Creando el borrador (copia de la página publicada)…');
     const base = await lastModifiedPublicado();
+    const huella = await huellaDatos(REFS_PUBLICO);
     await copiarDatosEntre(REFS_PUBLICO, REFS_BORRADOR);
-    await ESTADO_BORRADOR_REF.set({ baseTs: base, creado: Date.now() });
+    await ESTADO_BORRADOR_REF.set({ baseTs: base, baseHuella: huella, creado: Date.now() });
   }
   actualizarAvisoBorrador().catch(() => {});
 }
@@ -3618,24 +3725,20 @@ function arrancarBorrador(user){
 async function actualizarAvisoBorrador(){
   const el = document.getElementById('borrador-aviso');
   if(!el) return;
-  const [estado, pubTs] = await Promise.all([ESTADO_BORRADOR_REF.get({ source: 'server' }), lastModifiedPublicado()]);
-  const baseTs = estado.exists ? (estado.data().baseTs || 0) : 0;
-  el.style.display = pubTs > baseTs ? '' : 'none';
+  el.style.display = (await publicadaCambio()) ? '' : 'none';
 }
 
 async function publicarBorrador(){
   if(!BORRADOR || !esPublicadorSync()) return;
   const btn = document.getElementById('btn-publicar-borrador');
   try {
-    const [estado, pubTs] = await Promise.all([ESTADO_BORRADOR_REF.get({ source: 'server' }), lastModifiedPublicado()]);
-    const baseTs = estado.exists ? (estado.data().baseTs || 0) : 0;
-    const msg = pubTs > baseTs
+    const msg = (await publicadaCambio())
       ? '⚠ ATENCIÓN: la página publicada se modificó DESPUÉS de que empezaste este borrador (por ejemplo, alguien editó desde ?admin).\n\nSi publicás, esos cambios se pierden y la página queda exactamente como este borrador.\n\n¿Publicar igual?'
       : '¿Publicar el borrador?\n\nTodo lo que ves acá (productos, textos, videos, cinta, orden y categorías) pasa a la página que ven los visitantes.';
     if(!confirm(msg)) return;
     if(btn){ btn.disabled = true; btn.textContent = 'Publicando…'; }
     const ts = await copiarDatosEntre(REFS_BORRADOR, REFS_PUBLICO, (n, t) => mostrarToast(`Publicando… ${n} de ${t}`));
-    await ESTADO_BORRADOR_REF.set({ baseTs: ts, publicado: ts }, { merge: true });
+    await ESTADO_BORRADOR_REF.set({ baseTs: ts, baseHuella: await huellaDatos(REFS_PUBLICO), publicado: ts }, { merge: true });
     actualizarAvisoBorrador().catch(() => {});
     mostrarToast('Publicado ✓ — los visitantes ya ven los cambios');
   } catch(err){
@@ -3652,8 +3755,9 @@ async function descartarBorrador(){
   try {
     mostrarToast('Descartando borrador…');
     const base = await lastModifiedPublicado();
+    const huella = await huellaDatos(REFS_PUBLICO);
     await copiarDatosEntre(REFS_PUBLICO, REFS_BORRADOR);
-    await ESTADO_BORRADOR_REF.set({ baseTs: base, creado: Date.now() });
+    await ESTADO_BORRADOR_REF.set({ baseTs: base, baseHuella: huella, creado: Date.now() });
     location.reload();
   } catch(err){
     mostrarToastError('⚠ No se pudo descartar.<br>' + esc(err && err.message ? err.message : ''), 8000);
@@ -3741,11 +3845,50 @@ function calcularScoreBusqueda(tituloLower, qLower, palabras){
   return score;
 }
 
+// ── Búsqueda tolerante: sin importar tildes, mayúsculas ni singular/plural ──
+// Quita tildes letra por letra (la "ó" pasa a "o", la "ñ" a "n") SIN cambiar
+// el largo del texto, así las posiciones sirven para resaltar sobre el original.
+function normalizarBusqueda(txt){
+  return Array.from(String(txt || '')).map(ch => {
+    const base = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return base.length === 1 ? base : ch;
+  }).join('').toLowerCase();
+}
+// "aros" → también busca "aro"; "collares" → "collar"; "cadenas" → "cadena"
+function variantesPalabra(w){
+  const v = [w];
+  if(w.length > 3 && w.endsWith('s')) v.push(w.slice(0, -1));
+  if(w.length > 4 && w.endsWith('es')) v.push(w.slice(0, -2));
+  return v;
+}
+function palabraCoincide(textoNorm, w){
+  return variantesPalabra(w).some(x => textoNorm.includes(x));
+}
+
+// Se resuelve cuando termina la primera carga del catálogo
+let catalogoListo = false;
+CARGA_INICIAL.then(() => { catalogoListo = true; });
+
 function ejecutarBusqueda(query){
   const q = query.trim();
   const resultsEl = document.getElementById('search-results');
   const emptyEl   = document.getElementById('search-empty');
   const countEl   = document.getElementById('search-count');
+
+  // Si todavía no llegó el catálogo (conexión lenta), no decir "sin resultados":
+  // avisar que está cargando y repetir la búsqueda apenas esté.
+  if(!catalogoListo && !productos.length){
+    emptyEl.style.display = 'none';
+    resultsEl.innerHTML = '';
+    countEl.textContent = 'Cargando productos…';
+    CARGA_INICIAL.then(() => {
+      const overlay = document.getElementById('search-overlay');
+      if(overlay && overlay.classList.contains('active')){
+        ejecutarBusqueda(document.getElementById('search-input').value || '');
+      }
+    });
+    return;
+  }
 
   if(!q){
     // Sin texto → mostrar la primera categoría visible (normalmente "Destacados")
@@ -3753,6 +3896,7 @@ function ejecutarBusqueda(query){
     const primeraCat = getCategorias().filter(c => !categoriasOcultas.includes(c))[0];
     if(!primeraCat){ resultsEl.innerHTML = ''; countEl.textContent = ''; return; }
     const destacados = productos.filter(p => {
+      if(!ADMIN_MODE && productosOcultos.includes(p.id)) return false;
       const lista = Array.isArray(p.tipos) ? p.tipos : [p.tipo];
       return lista.includes(primeraCat);
     });
@@ -3781,23 +3925,29 @@ function ejecutarBusqueda(query){
   // `productos` ya contiene TODO el catálogo (viene de catalogo/_indice)
   const fuente = productos;
 
-  const palabras = q.toLowerCase().split(/\s+/).filter(Boolean);
-  const qLower = q.toLowerCase();
+  const qLower = normalizarBusqueda(q);
+  const palabras = qLower.split(/\s+/).filter(Boolean);
+  const catsDe = p => (Array.isArray(p.tipos) ? p.tipos : [p.tipo]).filter(Boolean).join(' ');
   const encontrados = fuente.filter(p => {
-    if(!ADMIN_MODE && productosOcultos.includes(p.id)) return false;
-    const titulo = (p.nombre || '').toLowerCase();
-    return palabras.some(w => titulo.includes(w));
+    if(!ADMIN_MODE && (productosOcultos.includes(p.id) || productoEnCategoriaOculta(p))) return false;
+    const titulo = normalizarBusqueda(p.nombre);
+    const cats = normalizarBusqueda(catsDe(p));
+    // Coincide por nombre o por categoría (ej: "dijes" trae los de la categoría Dijes)
+    return palabras.some(w => palabraCoincide(titulo, w) || palabraCoincide(cats, w));
   });
 
   // Ordenamos por relevancia: primero lo que más se parece a lo buscado
   // (coincidencia exacta > empieza igual > lo contiene > más caracteres
   // en común), así "anillo 6 y" aparece antes que "anillo 6 x" al buscar
-  // "anillo 6 y".
-  encontrados.sort((a, b) => {
-    const scoreA = calcularScoreBusqueda((a.nombre || '').toLowerCase(), qLower, palabras);
-    const scoreB = calcularScoreBusqueda((b.nombre || '').toLowerCase(), qLower, palabras);
-    return scoreB - scoreA;
-  });
+  // "anillo 6 y". Lo que coincide solo por categoría va después.
+  const puntaje = p => {
+    const titulo = normalizarBusqueda(p.nombre);
+    let sc = calcularScoreBusqueda(titulo, qLower, palabras);
+    palabras.forEach(w => { if(!titulo.includes(w) && palabraCoincide(titulo, w)) sc += 40; });   // singular/plural
+    palabras.forEach(w => { if(palabraCoincide(normalizarBusqueda(catsDe(p)), w)) sc += 10; });     // por categoría
+    return sc;
+  };
+  encontrados.sort((a, b) => puntaje(b) - puntaje(a));
 
   countEl.textContent = encontrados.length > 0
     ? `${encontrados.length} resultado${encontrados.length !== 1 ? 's' : ''}`
@@ -3853,19 +4003,27 @@ async function abrirProductoDesdeBuscador(prodId){
 }
 
 function resaltarPalabras(texto, palabras){
-  const unicas = [...new Set((palabras || []).filter(Boolean))]
-    // Las más largas primero, para que "collar" no le "gane" el match a "collares", etc.
-    .sort((a, b) => b.length - a.length)
-    // Se escapa la palabra igual que el texto, así matchea sobre el texto escapado
-    .map(w => esc(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-
-  texto = esc(texto);
-  if(!unicas.length) return texto;
-
-  // Un solo pase con alternancia sobre el texto ORIGINAL (nunca sobre el resultado
-  // ya resaltado), para no volver a matchear adentro de un <mark> ya insertado.
-  const regex = new RegExp(`(${unicas.join('|')})`, 'gi');
-  return texto.replace(regex, '<mark>$1</mark>');
+  const original = String(texto || '');
+  const norm = normalizarBusqueda(original);          // mismo largo que el original
+  const marcas = new Array(original.length).fill(false);
+  [...new Set((palabras || []).filter(Boolean))].forEach(w => {
+    variantesPalabra(normalizarBusqueda(w)).forEach(x => {
+      let i = norm.indexOf(x);
+      while(i !== -1){
+        for(let k = i; k < i + x.length; k++) marcas[k] = true;
+        i = norm.indexOf(x, i + 1);
+      }
+    });
+  });
+  // Arma el HTML escapando cada tramo y envolviendo en <mark> lo que coincidió
+  let out = '', abierto = false;
+  for(let k = 0; k < original.length; k++){
+    if(marcas[k] && !abierto){ out += '<mark>'; abierto = true; }
+    if(!marcas[k] && abierto){ out += '</mark>'; abierto = false; }
+    out += esc(original[k]);
+  }
+  if(abierto) out += '</mark>';
+  return out;
 }
 
 

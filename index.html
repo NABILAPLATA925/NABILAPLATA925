@@ -348,7 +348,10 @@
 <!-- PANEL DEL BORRADOR (solo ?admin2, con sesión iniciada) -->
 <div class="borrador-panel" id="borrador-panel">
   <div class="borrador-panel-titulo">📝 Borrador <small>no visible al público</small></div>
-  <div class="borrador-aviso" id="borrador-aviso" style="display:none">⚠ La página publicada se modificó después de que empezaste este borrador. Si publicás, esos cambios se pisan.</div>
+  <div class="borrador-aviso" id="borrador-aviso" style="display:none">
+    ⚠ La página publicada tiene cambios que no están en este borrador (por ejemplo, alguien editó desde ?admin). Si publicás, esos cambios se pisan.
+    <button type="button" class="borrador-aviso-ok" onclick="ignorarAvisoBorrador()">Ya lo revisé, ocultar aviso</button>
+  </div>
   <div class="borrador-panel-botones">
     <button type="button" class="bp-sec" onclick="verPaginaPublicada()" title="Abre la página que ven los visitantes en otra pestaña">👁 Ver publicada</button>
     <button type="button" class="bp-sec" onclick="descartarBorrador()" title="Vuelve el borrador a como está la página publicada">↺ Descartar</button>

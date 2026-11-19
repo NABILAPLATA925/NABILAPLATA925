@@ -259,6 +259,7 @@
 
   /* PRODUCTOS: el título entra primero y, con un delay fijo,
      los carruseles lo siguen — sin depender de seguir bajando */
+  #cat-nav.reveal{transition-delay:.25s}
   #carrousels-container.reveal{transition-delay:.45s}
 
   /* Cada carrusel de categoría anima al entrar en pantalla,
@@ -2066,3 +2067,5 @@ body.admin.modo-borrador .borrador-panel{display:block}
 
 .cat-carrusel-check{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text);margin-top:4px;cursor:pointer;text-transform:none;letter-spacing:0}
 .cat-carrusel-check input{width:auto !important;margin:0;accent-color:var(--principal)}
+
+.borrador-aviso-ok{display:block;margin-top:6px;background:none;border:1px solid #e0a35a;border-radius:3px;color:#7a3d00;font-size:11px;padding:4px 8px;cursor:pointer}
