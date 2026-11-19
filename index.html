@@ -211,6 +211,14 @@
         <h2 class="section-title" id="productos-titulo"></h2>
       </div>
     </div>
+    <!-- CARRUSEL DE CATEGORÍAS: al tocar una, lleva a esa categoría -->
+    <div class="cat-nav" id="cat-nav" style="display:none">
+      <button type="button" class="cat-nav-flecha prev" onclick="moverCatNav(-1)" aria-label="Ver categorías anteriores">‹</button>
+      <div class="cat-nav-scroll" id="cat-nav-scroll">
+        <div class="cat-nav-track" id="cat-nav-track"></div>
+      </div>
+      <button type="button" class="cat-nav-flecha next" onclick="moverCatNav(1)" aria-label="Ver más categorías">›</button>
+    </div>
     <div id="carrousels-container">
       <div id="carrusel-loading" class="carrusel-loading">
         <span></span><span></span><span></span>
@@ -428,7 +436,8 @@
   <div class="cat-modal">
     <button class="admin-close" onclick="document.getElementById('cat-modal').classList.remove('active')">✕</button>
     <h2>Categorías visibles</h2>
-    <p class="a-subtitle">Elegí cuáles mostrar en la página</p>
+    <p class="a-subtitle">Elegí cuáles mostrar en la página y la imagen de cada una</p>
+    <p style="font-size:11px;color:var(--text-soft);margin:-0.6rem 0 1rem">Tocá el círculo de una categoría para elegir su imagen (aparece en el carrusel de categorías). Si no elegís ninguna, se usa la foto del primer producto.</p>
     <div id="cat-toggle-list"></div>
     <div class="reorder-modal-btns" style="margin-top:2rem">
       <button class="btn-cancelar" onclick="document.getElementById('cat-modal').classList.remove('active')">Cancelar</button>
@@ -499,7 +508,7 @@
       <button class="ep-tab active" data-tab="hero" onclick="cambiarTabEP('hero')">Inicio</button>
       <button class="ep-tab" data-tab="nosotros" onclick="cambiarTabEP('nosotros')">Nosotros</button>
       <button class="ep-tab" data-tab="contacto" onclick="cambiarTabEP('contacto')">Contacto</button>
-      <button class="ep-tab" data-tab="videos" onclick="cambiarTabEP('videos')">Videos</button>
+      <button class="ep-tab" data-tab="videos" onclick="cambiarTabEP('videos')">Videos e imágenes</button>
     </div>
 
     <!-- TAB: INICIO / HERO -->
@@ -578,8 +587,18 @@
         </label>
         <input type="file" id="ep-video-input" accept="video/mp4,video/webm,video/quicktime" style="display:none" onchange="agregarVideoInicio(event)">
         <div class="ep-videos-lista" id="ep-videos-lista"></div>
+      </div>
+      <div class="admin-field">
+        <label>Imágenes decorativas</label>
+        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Hasta 5 imágenes (JPG, PNG o WEBP) para decorar la página: entre secciones o entre categorías de productos. Se achican solas antes de subirse. Los PNG conservan la transparencia.</p>
+        <label class="admin-foto-label" for="ep-imagen-input" id="ep-imagen-label" style="margin-top:4px">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span id="ep-imagen-texto">Hacé clic para agregar imágenes</span>
+        </label>
+        <input type="file" id="ep-imagen-input" accept="image/jpeg,image/png,image/webp" multiple style="display:none" onchange="agregarImagenDeco(event)">
+        <div class="ep-videos-lista" id="ep-imagenes-lista"></div>
         <button type="button" class="ep-btn-acomodar" id="ep-btn-acomodar" onclick="abrirAcomodarVideos()" style="display:none">
-          🗺 Acomodar videos en la página
+          🗺 Acomodar videos e imágenes en la página
         </button>
       </div>
     </div>
@@ -866,12 +885,12 @@
 <div class="admin-modal-overlay vl-overlay" id="video-layout-modal" onclick="if(event.target===this) cerrarAcomodarVideos(false)">
   <div class="admin-modal vl-modal">
     <button class="admin-close" onclick="cerrarAcomodarVideos(false)">✕</button>
-    <h2>Acomodar videos</h2>
+    <h2>Acomodar videos e imágenes</h2>
     <p class="a-subtitle">Así está ordenada tu página</p>
     <p class="vl-instrucciones">
-      <span class="vl-solo-compu">Arrastrá cada video al lugar de la página donde lo querés.</span>
-      <span class="vl-solo-cel">Tocá un video y después tocá el lugar de la página donde lo querés.</span>
-      Si soltás un video sobre otro, queda antes que ese.
+      <span class="vl-solo-compu">Arrastrá cada video o imagen al lugar de la página donde lo querés.</span>
+      <span class="vl-solo-cel">Tocá un video o imagen y después tocá el lugar de la página donde lo querés.</span>
+      También podés ponerlos entre categorías de productos. Si soltás uno sobre otro, queda antes que ese.
     </p>
     <div class="vl-ayuda-sel" id="vl-ayuda-sel" style="display:none"></div>
     <div class="vl-esquema" id="vl-esquema"></div>

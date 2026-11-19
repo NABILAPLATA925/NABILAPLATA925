@@ -111,6 +111,7 @@ let categoriasOcultas = []; // nombres de categorías ocultas
 let categoriaOrden = [];    // orden personalizado de categorías
 let ordenCategorias = {};
 let productosOcultos = [];  // IDs de productos ocultos individualmente
+let imagenesCategorias = {}; // { nombreCategoría: url de Cloudinary } para el carrusel de categorías
 
 const params = new URLSearchParams(location.search);
 const ADMIN_REQUEST = params.has('admin') || BORRADOR;
@@ -332,6 +333,7 @@ async function cargarDesdeFirebase(){
       categoriaOrden    = Array.isArray(m.categoriaOrden)    ? m.categoriaOrden    : [];
       ordenCategorias   = m.ordenCategorias || {};
       productosOcultos  = Array.isArray(m.productosOcultos)  ? m.productosOcultos  : [];
+      imagenesCategorias = (m.imagenesCategorias && typeof m.imagenesCategorias === 'object') ? m.imagenesCategorias : {};
     }
   } else {
     console.warn('No se pudo cargar metadata:', metaRes.reason);
@@ -423,12 +425,14 @@ async function guardarMetaEnFirebase(){
     categoriaOrden,
     ordenCategorias,
     productosOcultos,
+    // Solo las imágenes de categorías que siguen existiendo
+    imagenesCategorias: Object.fromEntries(Object.entries(imagenesCategorias).filter(([c]) => getCategorias().includes(c))),
     categorias: getCategorias(),
     lastModified: ts
   }, { merge: true });
   try {
     localStorage.setItem(LS('meta_cache'), JSON.stringify({
-      categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos
+      categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos, imagenesCategorias
     }));
     localStorage.setItem(LS('cache_ts'), String(ts));
   } catch(e) {}
@@ -523,6 +527,7 @@ const LIMITES = {
   FOTOS_POR_PRODUCTO: 3,
   VIDEOS_INICIO:      3,
   VIDEOS_AUTO:        1,   // máx de videos que se reproducen solos (cuota del plan gratis)
+  IMAGENES_DECO:      5,   // máx de imágenes decorativas en la página principal
   IMG_MAX_BYTES:      9 * 1000 * 1000,     // 9 MB  (límite real: 10 MB)
   IMG_MAX_MP:         24,                  // 24 MP (límite real: 25 MP)
   // 40 MB (límite real de subida: 100 MB). Se deja en 40 para que Cloudinary
@@ -740,6 +745,7 @@ async function inicializar(){
       categoriaOrden    = Array.isArray(m.categoriaOrden)    ? m.categoriaOrden    : [];
       ordenCategorias   = m.ordenCategorias || {};
       productosOcultos  = Array.isArray(m.productosOcultos)  ? m.productosOcultos  : [];
+      imagenesCategorias = (m.imagenesCategorias && typeof m.imagenesCategorias === 'object') ? m.imagenesCategorias : {};
     }
   } catch(e) {}
 
@@ -755,7 +761,7 @@ async function inicializar(){
     // Guardar metadata en caché (no los productos) para el orden de categorías
     try {
       localStorage.setItem(LS('meta_cache'), JSON.stringify({
-        categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos
+        categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos, imagenesCategorias
       }));
     } catch(e) {}
 
@@ -766,7 +772,7 @@ async function inicializar(){
       productos = await cargarDesdeFirebase();
       try {
         localStorage.setItem(LS('meta_cache'), JSON.stringify({
-          categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos
+          categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos, imagenesCategorias
         }));
       } catch(e) {}
     } catch(err2){
@@ -816,6 +822,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if(data.heroLogoImg)   SITE_CONFIG._heroLogoImg    = data.heroLogoImg;
       if(data.navLogoImg)    SITE_CONFIG._navLogoImg     = data.navLogoImg;
       if(Array.isArray(data.videosInicio)) SITE_CONFIG._videosInicio = data.videosInicio;
+      if(Array.isArray(data.imagenesInicio)) SITE_CONFIG._imagenesInicio = data.imagenesInicio;
     }
   } catch(e) {}
 
@@ -1176,6 +1183,8 @@ function buildAllCarousels(){
 
   // IDs ya incluidos en "todos" para construirlo sin duplicados
   const idsTodos = new Set();
+  const categoriasNuevas = [];
+  const navLista = [];   // para el carrusel de categorías
 
   visibles.forEach((cat, idx) => {
 
@@ -1200,6 +1209,16 @@ function buildAllCarousels(){
     const catId = getCatId(cat);
     const section = crearSeccionCarrusel(cat, catId, idx > 0);
     container.appendChild(section);
+
+    // Lugar para videos/imágenes decorativas después de esta categoría
+    const slot = document.createElement('div');
+    slot.className = 'medios-cat';
+    slot.dataset.pos = 'cat:' + cat;
+    slot.style.display = 'none';
+    slot.innerHTML = '<div class="videos-grid"></div>';
+    container.appendChild(slot);
+    categoriasNuevas.push(cat);
+    navLista.push({ cat, prods: [...prods] });
 
     toInit.push({ catId, catNombre: cat, prods: [...prods] });
 
@@ -1244,6 +1263,13 @@ function buildAllCarousels(){
     buildTrack(catId, prods);
 
   });
+
+  // Volver a ubicar videos/imágenes (los lugares entre categorías se recrearon)
+  categoriasEnPagina = categoriasNuevas;
+  carruselesConstruidos = true;
+  renderCatNav(navLista);
+  videosRenderKey = null;
+  renderVideosInicio();
 }
 
 function crearSeccionCarrusel(cat, catId, showDivider){
@@ -2341,9 +2367,131 @@ async function guardarReorden(){
 }
 
 // ════════════════════════════════════════════════════════
+//  CARRUSEL DE CATEGORÍAS (debajo de "Nuestros productos")
+//  Un círculo con imagen por categoría; al tocarlo lleva a esa categoría.
+//  Imagen: la elegida en el admin (👁 Categorías) o, si no hay, la foto
+//  del primer producto de la categoría.
+// ════════════════════════════════════════════════════════
+const CLD_CATNAV = 'f_auto,q_auto,c_fill,w_260,h_260';
+
+function imagenDeCategoria(cat, prods){
+  if(imagenesCategorias[cat]) return imagenesCategorias[cat];
+  const primero = (prods || []).find(p => p.img && !productosOcultos.includes(p.id)) || (prods || []).find(p => p.img);
+  return primero ? primero.img : '';
+}
+
+// lista: [{ cat, prods }] en el orden en que se muestran las categorías
+function renderCatNav(lista){
+  const nav = document.getElementById('cat-nav');
+  const track = document.getElementById('cat-nav-track');
+  if(!nav || !track) return;
+  if(!lista.length){ nav.style.display = 'none'; track.innerHTML = ''; return; }
+  track.innerHTML = lista.map(({ cat, prods }) => {
+    const src = imagenDeCategoria(cat, prods);
+    return `<button type="button" class="cat-nav-item" data-cat="${esc(cat)}" title="Ver ${esc(cat)}">
+      <span class="cat-nav-circulo">${src ? `<img src="${esc(cldUrl(src, CLD_CATNAV))}" alt="" loading="lazy" decoding="async" draggable="false">` : ''}</span>
+      <span class="cat-nav-nombre">${esc(cat)}</span>
+    </button>`;
+  }).join('');
+  track.querySelectorAll('.cat-nav-item').forEach(b => {
+    b.addEventListener('click', () => irACategoria(b.dataset.cat));
+  });
+  nav.style.display = '';
+  actualizarFlechasCatNav();
+}
+
+// Flechas solo cuando las categorías no entran en el ancho (en compu)
+function actualizarFlechasCatNav(){
+  const scroll = document.getElementById('cat-nav-scroll');
+  const nav = document.getElementById('cat-nav');
+  if(!scroll || !nav) return;
+  const desborda = scroll.scrollWidth > scroll.clientWidth + 2;
+  nav.classList.toggle('desborda', desborda);
+  // margen de 10 px: el "imán" del desplazamiento puede dejarlo corrido unos píxeles
+  nav.classList.toggle('al-inicio', scroll.scrollLeft <= 10);
+  nav.classList.toggle('al-final', scroll.scrollLeft + scroll.clientWidth >= scroll.scrollWidth - 10);
+}
+
+function moverCatNav(dir){
+  const scroll = document.getElementById('cat-nav-scroll');
+  if(!scroll) return;
+  const inicio = scroll.scrollLeft;
+  const destino = Math.max(0, Math.min(scroll.scrollWidth - scroll.clientWidth, inicio + dir * scroll.clientWidth * 0.8));
+  scroll.scrollTo({ left: destino, behavior: 'smooth' });
+  // Respaldo: si el navegador no animó, se mueve directo
+  setTimeout(() => {
+    if(Math.abs(scroll.scrollLeft - inicio) < 5) scroll.scrollLeft = destino;
+    actualizarFlechasCatNav();
+  }, 450);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const scroll = document.getElementById('cat-nav-scroll');
+  if(scroll) scroll.addEventListener('scroll', actualizarFlechasCatNav, { passive: true });
+  window.addEventListener('resize', actualizarFlechasCatNav);
+});
+
+// ── Admin: imagen de cada categoría (en el modal 👁 Categorías) ──
+// Se suben a Cloudinary recién al tocar "Guardar".
+let catImgPendientes = {};   // { cat: base64 }
+let catImgQuitar = new Set(); // categorías que vuelven a usar la foto del primer producto
+
+function elegirImagenCategoria(cat){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/jpeg,image/png,image/webp';
+  input.onchange = () => {
+    const file = input.files[0];
+    if(!file) return;
+    const err = validarArchivoFoto(file);
+    if(err){ alert(err); return; }
+    // 600 px alcanza de sobra para un círculo; PNG/WEBP conservan la transparencia
+    const transparente = file.type === 'image/png' || file.type === 'image/webp';
+    leerImagenEnCanvas(file, 600, (canvas, img) => {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      catImgPendientes[cat] = transparente ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.88);
+      catImgQuitar.delete(cat);
+      renderCatToggles();
+    });
+  };
+  input.click();
+}
+
+function quitarImagenCategoria(cat){
+  delete catImgPendientes[cat];
+  catImgQuitar.add(cat);
+  renderCatToggles();
+}
+
+// Miniatura que se ve en el modal para una categoría
+function miniaturaCategoriaAdmin(cat){
+  if(catImgPendientes[cat]) return { src: catImgPendientes[cat], propia: true, nueva: true };
+  if(!catImgQuitar.has(cat) && imagenesCategorias[cat]) return { src: cldUrl(imagenesCategorias[cat], CLD_CATNAV), propia: true };
+  const prods = productos.filter(p => (Array.isArray(p.tipos) ? p.tipos : [p.tipo]).includes(cat));
+  const src = (prods.find(p => p.img && !productosOcultos.includes(p.id)) || prods.find(p => p.img) || {}).img;
+  return { src: src ? cldUrl(src, CLD_CATNAV) : '', propia: false };
+}
+
+// Sube las imágenes elegidas y aplica los cambios (se llama al guardar)
+async function aplicarImagenesCategorias(){
+  const cats = Object.keys(catImgPendientes);
+  for(let i = 0; i < cats.length; i++){
+    mostrarToast(`Subiendo imagen de categoría ${i + 1} de ${cats.length}…`);
+    imagenesCategorias[cats[i]] = await subirImagenCloudinary(catImgPendientes[cats[i]]);
+  }
+  catImgQuitar.forEach(cat => { delete imagenesCategorias[cat]; });
+  catImgPendientes = {};
+  catImgQuitar = new Set();
+}
+
+// ════════════════════════════════════════════════════════
 //  ADMIN — Visibilidad de categorías
 // ════════════════════════════════════════════════════════
 function abrirModalCategorias(){
+  catImgPendientes = {};
+  catImgQuitar = new Set();
   renderCatToggles();
   document.getElementById('cat-modal').classList.add('active');
 }
@@ -2365,6 +2513,7 @@ function renderCatToggles(){
       return lista.includes(cat);
     }).length;
     const visible = !categoriasOcultas.includes(cat);
+    const mini = miniaturaCategoriaAdmin(cat);
     const item = document.createElement('div');
     item.className = 'cat-toggle-item';
     item.draggable = true;
@@ -2373,9 +2522,13 @@ function renderCatToggles(){
     item.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
         <span class="cat-drag-handle" title="Arrastrá para reordenar">⠿</span>
-        <div>
+        <button type="button" class="cat-img-btn${mini.nueva ? ' nueva' : ''}" title="Cambiar la imagen de la categoría">
+          ${mini.src ? `<img src="${esc(mini.src)}" alt="" draggable="false">` : '<span>+</span>'}
+        </button>
+        <div style="min-width:0">
           <div class="cat-toggle-name">${esc(cat)}</div>
           <div class="cat-toggle-count">${count} producto${count !== 1 ? 's' : ''}</div>
+          <div class="cat-img-estado">${mini.propia ? (mini.nueva ? 'Imagen nueva (se sube al guardar)' : 'Imagen propia') + ' · <a href="#" class="cat-img-quitar">usar la del primer producto</a>' : 'Imagen del primer producto · tocá para cambiarla'}</div>
         </div>
       </div>
       <div class="cat-toggle-actions">
@@ -2387,6 +2540,9 @@ function renderCatToggles(){
       </div>`;
 
     item.querySelector('.btn-cat-delete').addEventListener('click', () => eliminarCategoria(cat));
+    item.querySelector('.cat-img-btn').addEventListener('click', () => elegirImagenCategoria(cat));
+    const linkQuitar = item.querySelector('.cat-img-quitar');
+    if(linkQuitar) linkQuitar.addEventListener('click', e => { e.preventDefault(); quitarImagenCategoria(cat); });
 
     item.addEventListener('dragstart', e => {
       catDragSrc = idx;
@@ -2420,6 +2576,14 @@ function renderCatToggles(){
 
 async function guardarCategorias(){
   try { await esperarAdminListo(); } catch(e) { return; }
+  // Primero se suben las imágenes nuevas de categorías: si falla, no se guarda nada
+  try {
+    await aplicarImagenesCategorias();
+  } catch(err) {
+    console.error('Error subiendo imágenes de categorías:', err);
+    mostrarToastError('⚠ No se pudo subir la imagen.<br>' + esc(err && err.message ? err.message : 'Revisá la conexión.'), 8000);
+    return;
+  }
   const checkboxes = document.querySelectorAll('#cat-toggle-list input[type=checkbox]');
   categoriasOcultas = [];
   checkboxes.forEach(cb => {
@@ -2552,6 +2716,7 @@ async function cargarConfigEditable(){
       if(data.heroLogoImg)      SITE_CONFIG._heroLogoImg     = data.heroLogoImg;
       if(data.navLogoImg)       SITE_CONFIG._navLogoImg      = data.navLogoImg;
       SITE_CONFIG._videosInicio = Array.isArray(data.videosInicio) ? data.videosInicio : [];
+      SITE_CONFIG._imagenesInicio = Array.isArray(data.imagenesInicio) ? data.imagenesInicio : [];
       return data;
     }
   } catch(err){
@@ -2639,8 +2804,9 @@ function abrirModalEditarPagina(){
   document.getElementById('ep-cta-parrafo').value       = C.contacto.ctaParrafo || '';
   document.getElementById('ep-cta-boton').value         = C.contacto.ctaBoton || '';
 
-  // Videos de la página principal
+  // Videos e imágenes de la página principal
   videosEditando = normalizarVideos(C._videosInicio);
+  imagenesEditando = normalizarImagenes(C._imagenesInicio);
   renderListaVideosEP();
 
   // Mostrar tab inicial
@@ -2722,7 +2888,28 @@ async function guardarEditarPagina(){
     }
     const videosFinal = videosEditando
       .filter(v => v.url)
-      .map(v => ({ url: v.url, pos: v.pos, auto: !!v.auto }));
+      .map(v => ({ url: v.url, pos: v.pos, auto: !!v.auto, orden: v.orden ?? 0 }));
+
+    // Imágenes decorativas nuevas (máx 5, ya comprimidas bajo el límite del plan)
+    if(imagenesEditando.length > LIMITES.IMAGENES_DECO){
+      throw new Error(`Solo se permiten ${LIMITES.IMAGENES_DECO} imágenes decorativas.`);
+    }
+    const imgsNuevas = imagenesEditando.filter(v => v.b64);
+    let nImg = 0;
+    for(const v of imagenesEditando){
+      if(!v.b64) continue;
+      nImg++;
+      mostrarToast(`Subiendo imagen decorativa ${nImg} de ${imgsNuevas.length}…`);
+      v.url = await subirImagenCloudinary(v.b64);
+      delete v.b64;
+    }
+    const imagenesFinal = imagenesEditando
+      .filter(v => v.url)
+      .map(v => {
+        const o = { url: v.url, pos: v.pos, orden: v.orden ?? 0 };
+        if(v.w > 0 && v.h > 0){ o.w = v.w; o.h = v.h; }
+        return o;
+      });
 
     // ── 2) Leer valores ──────────────────────────────────
     C.rubro      = document.getElementById('ep-rubro').value.trim();
@@ -2759,6 +2946,7 @@ async function guardarEditarPagina(){
     if(subidas.hero)     C._heroLogoImg = subidas.hero;
     if(subidas.nav)      C._navLogoImg  = subidas.nav;
     C._videosInicio = videosFinal;
+    C._imagenesInicio = imagenesFinal;
 
     // ── 3) Persistir en Firebase ──────────────────────────
     mostrarToast('Guardando…');
@@ -2774,7 +2962,8 @@ async function guardarEditarPagina(){
       nosotrosImg:  C._nosotrosImg || null,
       heroLogoImg:  C._heroLogoImg || null,
       navLogoImg:   C._navLogoImg  || null,
-      videosInicio: C._videosInicio || []
+      videosInicio: C._videosInicio || [],
+      imagenesInicio: C._imagenesInicio || []
     };
     await CONFIG_REF.set(data);
     // Invalidar caché de otros dispositivos
@@ -2799,8 +2988,10 @@ async function guardarEditarPagina(){
 }
 
 // ════════════════════════════════════════════════════════
-//  VIDEOS de la página principal (máx 3 en total, solo acá — no en productos)
-//  Cada video tiene su posición y si se reproduce solo o al tocar.
+//  VIDEOS (máx 3) e IMÁGENES DECORATIVAS (máx 5) de la página principal.
+//  Solo acá — nunca en los productos. Cada elemento tiene su posición:
+//  entre secciones o entre categorías de productos ("cat:<nombre>").
+//  "orden" define el orden cuando hay varios en el mismo lugar.
 // ════════════════════════════════════════════════════════
 const POSICIONES_VIDEO = [
   { id: 'hero',      label: 'Después del título (antes de Nosotros)' },
@@ -2809,22 +3000,48 @@ const POSICIONES_VIDEO = [
   { id: 'final',     label: 'Al final de la página' }
 ];
 const POS_VIDEO_DEFAULT = 'nosotros';
+const POS_FIJAS = POSICIONES_VIDEO.map(p => p.id);
 
-// Acepta el formato viejo (lista de URLs) y el nuevo ({url, pos, auto})
+// Categorías que hoy se muestran en la página (en orden). Lo llena buildAllCarousels.
+let categoriasEnPagina = [];
+let carruselesConstruidos = false;   // hasta que no estén, lo que va entre categorías no se muestra
+
+function posValida(pos){
+  return typeof pos === 'string' && (POS_FIJAS.includes(pos) || (pos.startsWith('cat:') && pos.length > 4));
+}
+
+// Acepta el formato viejo (lista de URLs) y el nuevo ({url, pos, auto, orden})
 function normalizarVideos(lista){
   if(!Array.isArray(lista)) return [];
-  const posValidas = POSICIONES_VIDEO.map(p => p.id);
-  return lista.map(v => {
-    if(typeof v === 'string') return { url: v, pos: POS_VIDEO_DEFAULT, auto: true };
-    if(v && typeof v.url === 'string'){
-      return { url: v.url, pos: posValidas.includes(v.pos) ? v.pos : POS_VIDEO_DEFAULT, auto: !!v.auto };
-    }
-    return null;
+  return lista.map((v, i) => {
+    if(typeof v === 'string') v = { url: v, pos: POS_VIDEO_DEFAULT, auto: true };
+    if(!v || typeof v.url !== 'string') return null;
+    return {
+      url: v.url,
+      pos: posValida(v.pos) ? v.pos : POS_VIDEO_DEFAULT,
+      auto: !!v.auto,
+      orden: typeof v.orden === 'number' ? v.orden : i
+    };
   }).filter(Boolean).map((v, i, arr) => {
     // Nunca más de LIMITES.VIDEOS_AUTO automáticos (los extra pasan a "tocar para ver")
     const autosAntes = arr.slice(0, i).filter(x => x.auto).length;
     return v.auto && autosAntes >= LIMITES.VIDEOS_AUTO ? { ...v, auto: false } : v;
-  });
+  }).slice(0, LIMITES.VIDEOS_INICIO);
+}
+
+function normalizarImagenes(lista){
+  if(!Array.isArray(lista)) return [];
+  return lista.map((v, i) => {
+    if(!v || typeof v.url !== 'string') return null;
+    const out = {
+      url: v.url,
+      pos: posValida(v.pos) ? v.pos : POS_VIDEO_DEFAULT,
+      orden: typeof v.orden === 'number' ? v.orden : 100 + i
+    };
+    // Ancho/alto originales: sirven para reservar el lugar antes de que cargue
+    if(v.w > 0 && v.h > 0){ out.w = Math.round(v.w); out.h = Math.round(v.h); }
+    return out;
+  }).filter(Boolean).slice(0, LIMITES.IMAGENES_DECO);
 }
 
 // Versión liviana del video para los visitantes (720 px, calidad "eco", MP4 H.264).
@@ -2837,9 +3054,21 @@ function cldVideoUrl(src, transf, ext){
   if(ext) out = out.replace(/\.[a-z0-9]+(\?.*)?$/i, '.' + ext);
   return out;
 }
+// Imágenes decorativas: 800 px en celular, 1400 px en compu
+const CLD_DECO_CEL  = 'f_auto,q_auto,c_limit,w_800';
+const CLD_DECO_PC   = 'f_auto,q_auto,c_limit,w_1400';
+const CLD_DECO_MINI = 'f_auto,q_auto,c_fill,w_200,h_200';
 
-// Cada item: { url, pos, auto } (ya subido) o { file, preview, pos, auto } (pendiente)
+// ── Estado del panel "Editar página" ──
+// Video:  { url, pos, auto, orden } (subido) o { file, preview, pos, auto, orden } (pendiente)
+// Imagen: { url, pos, orden } (subida)      o { b64, pos, orden } (pendiente)
 let videosEditando = [];
+let imagenesEditando = [];
+
+function siguienteOrden(){
+  const todos = [...videosEditando, ...imagenesEditando].map(x => x.orden).filter(n => typeof n === 'number');
+  return todos.length ? Math.max(...todos) + 1 : 0;
+}
 
 function agregarVideoInicio(e){
   const file = e.target.files[0];
@@ -2856,7 +3085,7 @@ function agregarVideoInicio(e){
     return;
   }
   // Por defecto: "tocar para ver" (es lo que menos gasta del plan)
-  videosEditando.push({ file, preview: URL.createObjectURL(file), pos: POS_VIDEO_DEFAULT, auto: false });
+  videosEditando.push({ file, preview: URL.createObjectURL(file), pos: POS_VIDEO_DEFAULT, auto: false, orden: siguienteOrden() });
   renderListaVideosEP();
 }
 
@@ -2879,42 +3108,58 @@ function cambiarAutoVideo(i, auto){
   renderListaVideosEP();
 }
 
-function renderListaVideosEP(){
-  const lista = document.getElementById('ep-videos-lista');
-  if(!lista) return;
-  asignarNumerosVideos(videosEditando);
-  const n = videosEditando.length;
-  const hayAuto = videosEditando.filter(v => v.auto).length >= LIMITES.VIDEOS_AUTO;
-  lista.innerHTML = videosEditando.map((v, i) => `
-    <div class="ep-video-item">
-      ${miniaturaVideo(v)}
-      ${v.file ? '<span class="ep-video-pendiente">NUEVO</span>' : ''}
-      <button type="button" class="foto-thumb-remove" title="Quitar video" onclick="quitarVideoInicio(${i})">×</button>
-      <small><strong>Video ${v.num}</strong>${v.file ? ' · ' + esc(formatoMB(v.file.size)) : ''}</small>
-      <div class="ep-video-pos" title="Para cambiarlo usá «Acomodar videos en la página»">📍 ${esc(etiquetaPosVideo(v.pos))}</div>
-      <label class="ep-video-auto${!v.auto && hayAuto ? ' bloqueado' : ''}" title="${!v.auto && hayAuto ? 'Ya hay 1 video automático (máximo permitido por la cuota del plan gratuito)' : ''}"><input type="checkbox" ${v.auto ? 'checked' : ''} onchange="cambiarAutoVideo(${i}, this.checked)"> Reproducir solo</label>
-    </div>`).join('');
-  const btnAcomodar = document.getElementById('ep-btn-acomodar');
-  if(btnAcomodar) btnAcomodar.style.display = n ? '' : 'none';
-  const lleno = n >= LIMITES.VIDEOS_INICIO;
-  const label = document.getElementById('ep-video-label');
-  if(label) label.classList.toggle('deshabilitado', lleno);
-  const txt = document.getElementById('ep-video-texto');
-  if(txt) txt.textContent = lleno
-    ? `Máximo alcanzado (${LIMITES.VIDEOS_INICIO} de ${LIMITES.VIDEOS_INICIO}) — quitá uno para agregar otro`
-    : `Hacé clic para agregar un video (${n} de ${LIMITES.VIDEOS_INICIO})`;
+// Comprime una imagen decorativa: lado máx 1600 px. PNG/WEBP conservan la
+// transparencia; el resto va como JPEG. Siempre queda bajo el límite del plan.
+function comprimirImagenDeco(file, callback, onError){
+  const conTransparencia = file.type === 'image/png' || file.type === 'image/webp';
+  leerImagenEnCanvas(file, 1600, (canvas, img) => {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    let out;
+    if(conTransparencia){
+      out = canvas.toDataURL('image/png');
+      if(tamanoArchivo(out) > LIMITES.IMG_MAX_BYTES) out = canvas.toDataURL('image/webp', 0.9);
+    } else {
+      let q = 0.85;
+      out = canvas.toDataURL('image/jpeg', q);
+      while(tamanoArchivo(out) > LIMITES.IMG_MAX_BYTES && q > 0.4){ q -= 0.1; out = canvas.toDataURL('image/jpeg', q); }
+    }
+    callback(out, canvas.width, canvas.height);
+  }, onError);
 }
 
-// ════════════════════════════════════════════════════════
-//  ACOMODAR VIDEOS — ventana con un esquema visual de la página.
-//  Se arrastran (compu) o se tocan (celular) los videos para ubicarlos.
-//  Se trabaja sobre una copia: "Aplicar" la confirma, "Cancelar" la descarta.
-// ════════════════════════════════════════════════════════
-let layoutDraft = [];
-let layoutSel = null;    // índice del video seleccionado (modo tocar)
-let layoutDrag = null;   // índice del video que se está arrastrando
+function agregarImagenDeco(e){
+  let files = Array.from(e.target.files);
+  e.target.value = '';
+  if(!files.length) return;
+  const errores = [];
+  files = files.filter(f => { const err = validarArchivoFoto(f); if(err) errores.push(err); return !err; });
+  const lugares = LIMITES.IMAGENES_DECO - imagenesEditando.length;
+  if(lugares <= 0){
+    alert(`Ya hay ${LIMITES.IMAGENES_DECO} imágenes. Eliminá una para agregar otra.`);
+    return;
+  }
+  if(files.length > lugares){
+    errores.push(`Se pueden poner hasta ${LIMITES.IMAGENES_DECO} imágenes: se agregaron solo ${lugares} de las ${files.length} elegidas.`);
+    files = files.slice(0, lugares);
+  }
+  if(errores.length) alert(errores.join('\n\n'));
+  files.forEach(file => {
+    comprimirImagenDeco(file, (b64, w, h) => {
+      if(imagenesEditando.length >= LIMITES.IMAGENES_DECO) return;
+      imagenesEditando.push({ b64, w, h, pos: POS_VIDEO_DEFAULT, orden: siguienteOrden() });
+      renderListaVideosEP();
+    });
+  });
+}
 
-// Número fijo de cada video ("Video 1/2/3") para que no cambie al moverlo
+function quitarImagenDeco(i){
+  imagenesEditando.splice(i, 1);
+  renderListaVideosEP();
+}
+
+// Número fijo de cada elemento ("Video 1", "Imagen 2") para que no cambie al moverlo
 function asignarNumerosVideos(lista){
   const usados = new Set(lista.filter(v => v.num).map(v => v.num));
   lista.forEach(v => {
@@ -2929,7 +3174,14 @@ function asignarNumerosVideos(lista){
 
 function etiquetaPosVideo(pos){
   const p = POSICIONES_VIDEO.find(x => x.id === pos);
-  return p ? p.label : '';
+  if(p) return p.label;
+  if(typeof pos === 'string' && pos.startsWith('cat:')){
+    const cat = pos.slice(4);
+    return categoriasEnPagina.includes(cat)
+      ? `Después de la categoría «${cat}»`
+      : `Categoría «${cat}» (no visible: se muestra después de Productos)`;
+  }
+  return '';
 }
 
 function miniaturaVideo(v){
@@ -2937,10 +3189,86 @@ function miniaturaVideo(v){
     ? `<video src="${esc(v.preview)}" muted playsinline preload="metadata"></video>`
     : `<img src="${esc(cldVideoUrl(v.url, CLD_VIDEO_POSTER, 'jpg'))}" alt="" draggable="false">`;
 }
+function miniaturaImagen(v){
+  return `<img src="${esc(v.b64 || cldUrl(v.url, CLD_DECO_MINI))}" alt="" draggable="false">`;
+}
+
+// Lista de videos + lista de imágenes del panel
+function renderListaVideosEP(){
+  const lista = document.getElementById('ep-videos-lista');
+  if(!lista) return;
+  asignarNumerosVideos(videosEditando);
+  asignarNumerosVideos(imagenesEditando);
+  const n = videosEditando.length;
+  const hayAuto = videosEditando.filter(v => v.auto).length >= LIMITES.VIDEOS_AUTO;
+  lista.innerHTML = videosEditando.map((v, i) => `
+    <div class="ep-video-item">
+      ${miniaturaVideo(v)}
+      ${v.file ? '<span class="ep-video-pendiente">NUEVO</span>' : ''}
+      <button type="button" class="foto-thumb-remove" title="Quitar video" onclick="quitarVideoInicio(${i})">×</button>
+      <small><strong>Video ${v.num}</strong>${v.file ? ' · ' + esc(formatoMB(v.file.size)) : ''}</small>
+      <div class="ep-video-pos" title="Para cambiarlo usá «Acomodar en la página»">📍 ${esc(etiquetaPosVideo(v.pos))}</div>
+      <label class="ep-video-auto${!v.auto && hayAuto ? ' bloqueado' : ''}" title="${!v.auto && hayAuto ? 'Ya hay 1 video automático (máximo permitido por la cuota del plan gratuito)' : ''}"><input type="checkbox" ${v.auto ? 'checked' : ''} onchange="cambiarAutoVideo(${i}, this.checked)"> Reproducir solo</label>
+    </div>`).join('');
+  const lleno = n >= LIMITES.VIDEOS_INICIO;
+  const label = document.getElementById('ep-video-label');
+  if(label) label.classList.toggle('deshabilitado', lleno);
+  const txt = document.getElementById('ep-video-texto');
+  if(txt) txt.textContent = lleno
+    ? `Máximo alcanzado (${LIMITES.VIDEOS_INICIO} de ${LIMITES.VIDEOS_INICIO}) — quitá uno para agregar otro`
+    : `Hacé clic para agregar un video (${n} de ${LIMITES.VIDEOS_INICIO})`;
+
+  // Imágenes decorativas
+  const listaImg = document.getElementById('ep-imagenes-lista');
+  const ni = imagenesEditando.length;
+  if(listaImg){
+    listaImg.innerHTML = imagenesEditando.map((v, i) => `
+      <div class="ep-video-item">
+        ${miniaturaImagen(v)}
+        ${v.b64 ? '<span class="ep-video-pendiente">NUEVA</span>' : ''}
+        <button type="button" class="foto-thumb-remove" title="Quitar imagen" onclick="quitarImagenDeco(${i})">×</button>
+        <small><strong>Imagen ${v.num}</strong>${v.b64 ? ' · ' + esc(formatoMB(tamanoArchivo(v.b64))) : ''}</small>
+        <div class="ep-video-pos" title="Para cambiarlo usá «Acomodar en la página»">📍 ${esc(etiquetaPosVideo(v.pos))}</div>
+      </div>`).join('');
+  }
+  const llenoImg = ni >= LIMITES.IMAGENES_DECO;
+  const labelImg = document.getElementById('ep-imagen-label');
+  if(labelImg) labelImg.classList.toggle('deshabilitado', llenoImg);
+  const txtImg = document.getElementById('ep-imagen-texto');
+  if(txtImg) txtImg.textContent = llenoImg
+    ? `Máximo alcanzado (${LIMITES.IMAGENES_DECO} de ${LIMITES.IMAGENES_DECO}) — quitá una para agregar otra`
+    : `Hacé clic para agregar imágenes (${ni} de ${LIMITES.IMAGENES_DECO})`;
+
+  const btnAcomodar = document.getElementById('ep-btn-acomodar');
+  if(btnAcomodar) btnAcomodar.style.display = (n + ni) ? '' : 'none';
+}
+
+// ════════════════════════════════════════════════════════
+//  ACOMODAR — ventana con un esquema visual de la página.
+//  Videos e imágenes se arrastran (compu) o se tocan (celular).
+//  Se trabaja sobre una copia: "Aplicar" la confirma, "Cancelar" la descarta.
+// ════════════════════════════════════════════════════════
+let layoutDraft = [];
+let layoutSel = null;    // índice del elemento seleccionado (modo tocar)
+let layoutDrag = null;   // índice del elemento que se está arrastrando
+
+function nombreElemento(v){ return (v.tipo === 'imagen' ? 'Imagen ' : 'Video ') + v.num; }
+
+function zonasDisponibles(){
+  return [...POS_FIJAS, ...categoriasEnPagina.map(c => 'cat:' + c)];
+}
 
 function abrirAcomodarVideos(){
-  if(!videosEditando.length){ alert('Primero agregá al menos un video.'); return; }
-  layoutDraft = videosEditando.map(v => ({ ...v }));
+  if(!videosEditando.length && !imagenesEditando.length){ alert('Primero agregá al menos un video o una imagen.'); return; }
+  asignarNumerosVideos(videosEditando);
+  asignarNumerosVideos(imagenesEditando);
+  const zonas = zonasDisponibles();
+  layoutDraft = [
+    ...videosEditando.map(v => ({ ...v, tipo: 'video' })),
+    ...imagenesEditando.map(v => ({ ...v, tipo: 'imagen' }))
+  ]
+    .map(v => zonas.includes(v.pos) ? v : { ...v, pos: 'productos' })   // categoría que ya no se ve
+    .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
   layoutSel = null;
   renderEsquemaVideos();
   document.getElementById('video-layout-modal').classList.add('active');
@@ -2948,7 +3276,10 @@ function abrirAcomodarVideos(){
 
 function cerrarAcomodarVideos(aplicar){
   if(aplicar){
-    videosEditando = layoutDraft.map(v => ({ ...v }));
+    layoutDraft.forEach((v, i) => { v.orden = i; });
+    const limpiar = ({ tipo, ...resto }) => resto;
+    videosEditando   = layoutDraft.filter(v => v.tipo === 'video').map(limpiar);
+    imagenesEditando = layoutDraft.filter(v => v.tipo === 'imagen').map(limpiar);
     renderListaVideosEP();
   }
   layoutDraft = [];
@@ -2956,8 +3287,8 @@ function cerrarAcomodarVideos(aplicar){
   document.getElementById('video-layout-modal').classList.remove('active');
 }
 
-// Mueve el video idx a la posición pos. Si se indica antesDe (índice de otro
-// video), queda justo antes de él; si no, queda último en esa posición.
+// Mueve el elemento idx a la posición pos. Si se indica antesDe (índice de otro
+// elemento), queda justo antes de él; si no, queda último en esa posición.
 function moverVideoEnEsquema(idx, pos, antesDe){
   if(idx == null || !layoutDraft[idx] || idx === antesDe) return;
   const item = layoutDraft[idx];
@@ -2978,41 +3309,49 @@ function moverVideoEnEsquema(idx, pos, antesDe){
 }
 
 function chipVideoHTML(v, idx){
-  return `<div class="vl-chip${layoutSel === idx ? ' seleccionado' : ''}" draggable="true" data-idx="${idx}"
+  const esImg = v.tipo === 'imagen';
+  return `<div class="vl-chip${esImg ? ' vl-chip-imagen' : ''}${layoutSel === idx ? ' seleccionado' : ''}" draggable="true" data-idx="${idx}"
       title="Arrastralo (o tocalo y después tocá dónde ponerlo)">
-    <div class="vl-chip-img">${miniaturaVideo(v)}</div>
+    <div class="vl-chip-img">${esImg ? miniaturaImagen(v) : miniaturaVideo(v)}</div>
     <div class="vl-chip-txt">
-      <strong>Video ${v.num}</strong>
-      <span>${v.auto ? '▶ Se reproduce solo' : 'Tocar para ver'}</span>
+      <strong>${esc(nombreElemento(v))}</strong>
+      <span>${esImg ? '🖼 Imagen' : (v.auto ? '▶ Se reproduce solo' : 'Tocar para ver')}</span>
     </div>
     <span class="vl-chip-grip" aria-hidden="true">⠿</span>
   </div>`;
 }
 
-function zonaVideosHTML(pos){
+function zonaVideosHTML(pos, extraClase){
   const items = layoutDraft.map((v, i) => ({ v, i })).filter(x => x.v.pos === pos);
-  return `<div class="vl-zona${items.length ? ' con-videos' : ''}${layoutSel != null ? ' esperando' : ''}" data-pos="${pos}">
+  return `<div class="vl-zona${extraClase ? ' ' + extraClase : ''}${items.length ? ' con-videos' : ''}${layoutSel != null ? ' esperando' : ''}" data-pos="${esc(pos)}">
     ${items.map(x => chipVideoHTML(x.v, x.i)).join('')}
-    <div class="vl-zona-hint">${layoutSel != null ? '⬇ Tocá acá para poner el video' : (items.length ? 'Soltá acá para agregar otro' : 'Soltá un video acá')}</div>
+    <div class="vl-zona-hint">${layoutSel != null ? '⬇ Tocá acá para ponerlo' : (items.length ? 'Soltá acá para agregar otro' : 'Soltá acá')}</div>
   </div>`;
 }
 
 function renderEsquemaVideos(){
   const cont = document.getElementById('vl-esquema');
   if(!cont) return;
+  const cats = categoriasEnPagina.map(c => `
+      <div class="vl-cat"><span>Categoría: ${esc(c)}</span><div class="vl-prod-grid"><i></i><i></i><i></i><i></i></div></div>
+      ${zonaVideosHTML('cat:' + c, 'vl-zona-cat')}`).join('');
   cont.innerHTML = `
     <div class="vl-bloque vl-nav">Barra de menú</div>
     <div class="vl-bloque vl-hero"><span>Título principal</span><small>Portada de la página</small></div>
     ${zonaVideosHTML('hero')}
     <div class="vl-bloque vl-nos"><span>Nosotros</span><div class="vl-nos-fig"><i></i><b></b></div></div>
     ${zonaVideosHTML('nosotros')}
-    <div class="vl-bloque vl-prod"><span>Productos</span><div class="vl-prod-grid"><i></i><i></i><i></i><i></i></div></div>
+    <div class="vl-bloque vl-prod">
+      <span>Productos</span>
+      ${cats || '<div class="vl-prod-grid"><i></i><i></i><i></i><i></i></div>'}
+      ${categoriasEnPagina.length ? '<div class="vl-cat vl-cat-todos"><span>Todos los productos</span></div>' : ''}
+    </div>
     ${zonaVideosHTML('productos')}
     <div class="vl-bloque vl-cont"><span>Contacto</span></div>
     ${zonaVideosHTML('final')}
     <div class="vl-bloque vl-pie">Pie de página</div>`;
 
-  // ── Tocar: seleccionar un video y después tocar dónde va ──
+  // ── Tocar: seleccionar un elemento y después tocar dónde va ──
   cont.querySelectorAll('.vl-chip').forEach(chip => {
     const idx = Number(chip.dataset.idx);
     chip.addEventListener('click', e => {
@@ -3062,7 +3401,7 @@ function renderEsquemaVideos(){
   const ayuda = document.getElementById('vl-ayuda-sel');
   if(ayuda){
     ayuda.textContent = layoutSel !== null
-      ? `Video ${layoutDraft[layoutSel].num} seleccionado: tocá el lugar de la página donde lo querés poner (o tocalo de nuevo para soltarlo).`
+      ? `${nombreElemento(layoutDraft[layoutSel])} seleccionado: tocá el lugar de la página donde lo querés poner (o tocalo de nuevo para soltarlo).`
       : '';
     ayuda.style.display = layoutSel !== null ? 'block' : 'none';
   }
@@ -3088,6 +3427,20 @@ function htmlVideoCard(v){
   </div>`;
 }
 
+// Imagen decorativa: se descarga recién cuando se acerca a la pantalla
+function htmlImagenDeco(v){
+  // Con medidas: el lugar queda reservado (la página no "salta" al cargar).
+  // Sin medidas (imágenes viejas): un tamaño mínimo hasta que cargue.
+  const medidas = v.w && v.h
+    ? `width="${v.w}" height="${v.h}" style="width:${v.w}px"`
+    : `class="sin-medidas" onload="this.classList.remove('sin-medidas')"`;
+  return `<figure class="deco-img">
+    <img ${medidas} src="${esc(cldUrl(v.url, CLD_DECO_PC))}"
+         srcset="${esc(cldUrl(v.url, CLD_DECO_CEL))} 800w, ${esc(cldUrl(v.url, CLD_DECO_PC))} 1400w"
+         sizes="(max-width: 760px) 100vw, 1100px" alt="" loading="lazy" decoding="async">
+  </figure>`;
+}
+
 function cargarFuentesVideo(video){
   if(video.dataset.cargado) return;
   video.dataset.cargado = '1';
@@ -3095,28 +3448,38 @@ function cargarFuentesVideo(video){
   video.load();
 }
 
+// Dibuja videos + imágenes en sus lugares. Se llama al aplicar la configuración
+// y cada vez que se reconstruyen los carruseles (cambian los lugares entre categorías).
 let videosRenderKey = null;
 let videosObserver = null;
 function renderVideosInicio(){
-  const secciones = document.querySelectorAll('.videos-section[data-pos]');
-  if(!secciones.length) return;
-  const videos = normalizarVideos(SITE_CONFIG._videosInicio)
-    .filter(v => v.url.startsWith('https://res.cloudinary.com/'))
-    .slice(0, LIMITES.VIDEOS_INICIO);
-  const key = JSON.stringify(videos);
+  const slots = document.querySelectorAll('.videos-section[data-pos], .medios-cat[data-pos]');
+  if(!slots.length) return;
+  const presentes = new Set(Array.from(slots).map(s => s.dataset.pos));
+  const ok = u => typeof u === 'string' && u.startsWith('https://res.cloudinary.com/');
+  const elementos = [
+    ...normalizarVideos(SITE_CONFIG._videosInicio).filter(v => ok(v.url)).map(v => ({ ...v, tipo: 'video' })),
+    ...normalizarImagenes(SITE_CONFIG._imagenesInicio).filter(v => ok(v.url)).map(v => ({ ...v, tipo: 'imagen' }))
+  ]
+    // categoría oculta o sin productos → después de Productos (si los carruseles todavía
+    // no se armaron, se espera para no mostrarlo un instante en el lugar equivocado)
+    .map(v => presentes.has(v.pos) ? v : (carruselesConstruidos ? { ...v, pos: 'productos' } : null))
+    .filter(Boolean)
+    .sort((a, b) => a.orden - b.orden);
+  const key = JSON.stringify([elementos, [...presentes]]);
   if(key === videosRenderKey) return;
   videosRenderKey = key;
   if(videosObserver){ videosObserver.disconnect(); videosObserver = null; }
 
-  secciones.forEach(sec => {
-    const grid = sec.querySelector('.videos-grid');
-    const propios = videos.filter(v => v.pos === sec.dataset.pos);
-    grid.innerHTML = propios.map(htmlVideoCard).join('');
-    sec.style.display = propios.length ? '' : 'none';
+  slots.forEach(slot => {
+    const grid = slot.querySelector('.videos-grid');
+    const propios = elementos.filter(v => v.pos === slot.dataset.pos);
+    grid.innerHTML = propios.map(v => v.tipo === 'imagen' ? htmlImagenDeco(v) : htmlVideoCard(v)).join('');
+    slot.style.display = propios.length ? '' : 'none';
   });
 
   const autos = [];
-  document.querySelectorAll('.videos-section .video-card').forEach(card => {
+  document.querySelectorAll('.videos-section .video-card, .medios-cat .video-card').forEach(card => {
     const video = card.querySelector('video');
     const btnSonido = card.querySelector('.video-sonido');
     const btnPlay = card.querySelector('.video-play');
