@@ -42,7 +42,7 @@
      ═══════════════════════════════════════ -->
 <script defer src="config.js"></script>
 
-<link rel="stylesheet" href="style.css?v=5.1.5">
+<link rel="stylesheet" href="style.css?v=5.1.6">
 
 <link rel="icon" href="img/favicon.png" type="image/png">
 
@@ -340,7 +340,7 @@
     <button class="btn-admin-reset" onclick="abrirModalCategorias()">👁 Categorías</button>
     <button class="btn-admin-reset" onclick="abrirModalMarquee()">📢 Cinta Promocional</button>
     <button class="btn-admin-reset" onclick="abrirModalEditarPagina()">✏ Editar página</button>
-    <button class="btn-admin-reset" onclick="abrirModalHerramientas()">⚙ Herramientas</button>
+    <button class="btn-admin-reset" id="btn-herramientas" onclick="abrirModalHerramientas()" style="display:none">⚙ Herramientas</button>
     <button onclick="logoutAdmin()">Cerrar sesión</button>
   </div>
 </div>
@@ -495,7 +495,7 @@
 <!-- TOAST -->
 <div class="admin-toast" id="admin-toast"></div>
 
-<script defer src="script.js?v=5.1.5"></script>
+<script defer src="script.js?v=5.1.6"></script>
 
 <!-- MODAL EDITAR PÁGINA (admin) -->
 <div class="admin-modal-overlay" id="edit-pagina-modal" onclick="cerrarModalEditarPagina(event)">

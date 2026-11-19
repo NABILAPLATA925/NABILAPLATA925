@@ -47,8 +47,22 @@ const CLOUDINARY_REF = db.collection('privado').doc('cloudinary');
 const auth = firebase.auth();
 
 
+// true mientras se procesa un inicio de sesión desde el formulario
+// (en ?admin2 ese login recopia la página publicada y recarga)
+let LOGIN_EN_CURSO = false;
+
+// "⚙ Herramientas" solo para la cuenta del administrador técnico (PUBLICADORES_HASH)
+async function actualizarAccesoHerramientas(user){
+  ES_PUBLICADOR = await calcularEsPublicador(user);
+  const btn = document.getElementById('btn-herramientas');
+  if(btn) btn.style.display = ES_PUBLICADOR ? '' : 'none';
+  return ES_PUBLICADOR;
+}
+
 //MANTENER SESIÓN
 auth.onAuthStateChanged(user => {
+  if(user && ADMIN_REQUEST && BORRADOR && LOGIN_EN_CURSO) return;   // lo resuelve submitLogin
+  if(user && ADMIN_REQUEST) actualizarAccesoHerramientas(user);
   if(user && ADMIN_REQUEST){
     const yaEraAdmin = ADMIN_MODE;
     ADMIN_MODE = true;
@@ -410,7 +424,7 @@ async function commitCambios(ops = []){
   await batch.commit();
   try { localStorage.setItem(LS('cache_ts'), String(ts)); } catch(e) {}
   if(!indice){
-    mostrarToastError('⚠ El catálogo todavía tiene fotos guardadas dentro de la base (formato anterior).<br>Diríjase a ⚙ Herramientas → "Migrar fotos a Cloudinary".', 12000);
+    mostrarToastError('⚠ El catálogo todavía tiene fotos guardadas dentro de la base (formato anterior).<br>' + textoIrAHerramientas(), 12000);
   }
 }
 
@@ -490,7 +504,7 @@ function iniciarSincronizacionAdmin(){
     if(await indiceDesactualizado()) await commitCambios([]);
     const pendientes = contarFotosBase64() + fotosBase64DePagina().length;
     if(pendientes > 0){
-      mostrarToastError(`⚠ Hay ${pendientes} foto${pendientes !== 1 ? 's' : ''} en formato anterior.<br>Diríjase a ⚙ Herramientas → "Migrar fotos a Cloudinary".`, 10000);
+      mostrarToastError(`⚠ Hay ${pendientes} foto${pendientes !== 1 ? 's' : ''} en formato anterior.<br>` + textoIrAHerramientas(), 10000);
     }
   })().catch(err => {
     ADMIN_SYNC = null;
@@ -719,14 +733,29 @@ async function submitLogin(){
   const btn      = document.getElementById('login-btn');
   const errorEl  = document.getElementById('login-error');
 
-  if(!email || !password){ errorEl.textContent = 'Completá email y contraseña.'; return; }
+  if(!email || !password){ errorEl.textContent = 'Complete el email y la contraseña.'; return; }
 
   btn.textContent = 'Ingresando…';
   btn.disabled    = true;
   errorEl.textContent = '';
 
+  LOGIN_EN_CURSO = true;
   try {
     await auth.signInWithEmailAndPassword(email, password);
+  } catch {
+    LOGIN_EN_CURSO = false;
+    errorEl.textContent = 'Credenciales incorrectas. Intente nuevamente.';
+    btn.textContent = 'Ingresar';
+    btn.disabled    = false;
+    return;
+  }
+  // ?admin2: cada inicio de sesión arranca de una copia nueva de la página publicada
+  if(BORRADOR){
+    await reiniciarBorradorAlIngresar(auth.currentUser, btn, errorEl);
+    return;
+  }
+  LOGIN_EN_CURSO = false;
+  try {
     document.getElementById('login-modal').classList.remove('active');
     ADMIN_MODE = true;
     document.body.classList.add('admin');
@@ -734,12 +763,9 @@ async function submitLogin(){
     document.getElementById('admin-bar').style.display = 'flex';
     posicionarNavYMarquee();
     buildAllCarousels(); // reconstruir cards con botones de admin
-    if(BORRADOR) arrancarBorrador(auth.currentUser);
-    else iniciarSincronizacionAdmin().catch(() => {});
-  } catch {
-    errorEl.textContent = 'Credenciales incorrectas. Intente nuevamente.';
-    btn.textContent = 'Ingresar';
-    btn.disabled    = false;
+    iniciarSincronizacionAdmin().catch(() => {});
+  } catch(err) {
+    console.error('Error al entrar al modo admin:', err);
   }
 }
 
@@ -4005,7 +4031,39 @@ async function prepararBorrador(user){
   actualizarAvisoBorrador().catch(() => {});
 }
 
-// Arranca el borrador una sola vez (se llama desde el login y desde la sesión guardada)
+function textoIrAHerramientas(){
+  return esPublicadorSync()
+    ? 'Diríjase a ⚙ Herramientas → "Migrar fotos a Cloudinary".'
+    : 'Comuníquese con el servicio técnico de LUCANSOFT.';
+}
+
+// Se llama al iniciar sesión desde el formulario en ?admin2: el borrador se
+// vuelve a copiar de la página publicada (se descarta lo no publicado) y la
+// página se recarga para trabajar sobre esa copia nueva.
+// Recargar la página con la sesión ya iniciada NO recopia (no se pierde lo que se está editando).
+async function reiniciarBorradorAlIngresar(user, btn, errorEl){
+  try {
+    if(!(await actualizarAccesoHerramientas(user))){
+      alert('El modo borrador (?admin2) es solo para el administrador técnico.\n\nIngresará al modo administrador estándar.');
+      location.href = location.pathname + '?admin';
+      return;
+    }
+    if(btn) btn.textContent = 'Copiando la página publicada…';
+    const base = await lastModifiedPublicado();
+    const huella = await huellaDatos(REFS_PUBLICO);
+    await copiarDatosEntre(REFS_PUBLICO, REFS_BORRADOR);
+    await ESTADO_BORRADOR_REF.set({ baseTs: base, baseHuella: huella, creado: Date.now() });
+    location.reload();
+  } catch(err){
+    console.error('Error copiando la página publicada al borrador:', err);
+    LOGIN_EN_CURSO = false;
+    if(errorEl) errorEl.textContent = 'No se pudo copiar la página publicada. Verifique la conexión e intente nuevamente.';
+    if(btn){ btn.textContent = 'Ingresar'; btn.disabled = false; }
+    try { await auth.signOut(); } catch(e) {}
+  }
+}
+
+// Arranca el borrador una sola vez (se llama desde la sesión guardada)
 let borradorArrancado = false;
 function arrancarBorrador(user){
   if(borradorArrancado || !user) return;
@@ -5217,6 +5275,7 @@ async function actualizarEstadoHerramientas(){
 }
 
 async function abrirModalHerramientas(){
+  if(!esPublicadorSync()) return;
   document.getElementById('tools-modal').classList.add('active');
   toolsLog('');
   const b64El = document.getElementById('tools-b64-estado');
