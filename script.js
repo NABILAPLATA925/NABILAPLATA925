@@ -410,7 +410,7 @@ async function commitCambios(ops = []){
   await batch.commit();
   try { localStorage.setItem(LS('cache_ts'), String(ts)); } catch(e) {}
   if(!indice){
-    mostrarToastError('⚠ El catálogo todavía tiene fotos guardadas dentro de la base (formato viejo).<br>Andá a ⚙ Herramientas → "Migrar fotos a Cloudinary".', 12000);
+    mostrarToastError('⚠ El catálogo todavía tiene fotos guardadas dentro de la base (formato anterior).<br>Diríjase a ⚙ Herramientas → "Migrar fotos a Cloudinary".', 12000);
   }
 }
 
@@ -490,12 +490,12 @@ function iniciarSincronizacionAdmin(){
     if(await indiceDesactualizado()) await commitCambios([]);
     const pendientes = contarFotosBase64() + fotosBase64DePagina().length;
     if(pendientes > 0){
-      mostrarToastError(`⚠ Hay ${pendientes} foto${pendientes !== 1 ? 's' : ''} en formato viejo.<br>Andá a ⚙ Herramientas → "Migrar fotos a Cloudinary".`, 10000);
+      mostrarToastError(`⚠ Hay ${pendientes} foto${pendientes !== 1 ? 's' : ''} en formato anterior.<br>Diríjase a ⚙ Herramientas → "Migrar fotos a Cloudinary".`, 10000);
     }
   })().catch(err => {
     ADMIN_SYNC = null;
     console.error('Error sincronizando admin:', err);
-    mostrarToastError('⚠ No se pudo sincronizar el catálogo. Revisá la conexión y recargá la página.', 8000);
+    mostrarToastError('⚠ No se pudo sincronizar el catálogo. Verifique la conexión y recargue la página.', 8000);
     throw err;
   });
   return ADMIN_SYNC;
@@ -537,7 +537,7 @@ async function obtenerCloudinary(){
 
 async function configurarCloudinary(){
   const actual = cldConfig || {};
-  const cloudName = (prompt('Cloudinary — "Cloud name" (lo ves en el Dashboard de Cloudinary):', actual.cloudName || '') || '').trim();
+  const cloudName = (prompt('Cloudinary — "Cloud name" (figura en el panel de Cloudinary):', actual.cloudName || '') || '').trim();
   if(!cloudName) throw new Error('Falta configurar Cloudinary (cloud name).');
   const preset = (prompt('Cloudinary — nombre del "Upload preset" (modo Unsigned):', actual.preset || '') || '').trim();
   if(!preset) throw new Error('Falta configurar Cloudinary (upload preset).');
@@ -593,7 +593,7 @@ function validarArchivoVideo(file){
     return `"${file.name}" no es un video compatible (usá MP4, WEBM o MOV).`;
   }
   if(file.size > LIMITES.VIDEO_MAX_BYTES){
-    return `"${file.name}" pesa ${formatoMB(file.size)} y el máximo permitido es ${formatoMB(LIMITES.VIDEO_MAX_BYTES)}.\nComprimilo (por ejemplo con HandBrake o un compresor online) y volvé a intentar.`;
+    return `"${file.name}" pesa ${formatoMB(file.size)} y el máximo permitido es ${formatoMB(LIMITES.VIDEO_MAX_BYTES)}.\nComprímalo (por ejemplo, con HandBrake o un compresor en línea) e intente nuevamente.`;
   }
   return null;
 }
@@ -703,7 +703,7 @@ function pedirLoginAdmin(){
 
 function mostrarAyudaContrasena(e){
   e.preventDefault();
-  alert('Para restablecer tu contraseña, contactate con el servicio técnico de LUCANSOFT.');
+  alert('Para restablecer su contraseña, comuníquese con el servicio técnico de LUCANSOFT.');
 }
 
 function cancelarLogin(){
@@ -737,7 +737,7 @@ async function submitLogin(){
     if(BORRADOR) arrancarBorrador(auth.currentUser);
     else iniciarSincronizacionAdmin().catch(() => {});
   } catch {
-    errorEl.textContent = 'Credenciales incorrectas. Intentá de nuevo.';
+    errorEl.textContent = 'Credenciales incorrectas. Intente nuevamente.';
     btn.textContent = 'Ingresar';
     btn.disabled    = false;
   }
@@ -1892,7 +1892,7 @@ async function eliminarProducto(p){
     mostrarToast('Producto eliminado ✓');
   } catch(err) {
     console.error('Error eliminando producto:', err);
-    mostrarToastError('⚠ Error al eliminar. Revisá la conexión, recargar la página.', 7000);
+    mostrarToastError('⚠ Error al eliminar. Verifique la conexión y recargue la página.', 7000);
   }
 }
 
@@ -1943,7 +1943,7 @@ document.querySelectorAll(`.producto-card[data-prod-id="${p.id}"]`).forEach(c =>
     mostrarToast(ahoraOculto ? 'Producto ocultado ✓' : 'Producto visible ✓');
   } catch(err) {
     console.error('Error guardando visibilidad:', err);
-    mostrarToastError('⚠ Error al guardar. Revisá la conexión, recargar la página.', 7000);
+    mostrarToastError('⚠ Error al guardar. Verifique la conexión y recargue la página.', 7000);
   }
 }
 
@@ -1995,7 +1995,7 @@ function cerrarAdminModal(e){
 
 function textoFotosCargadas(){
   const n = fotosBase64.length;
-  if(n === 0) return `Hacé clic para subir imágenes (máximo ${LIMITES.FOTOS_POR_PRODUCTO})`;
+  if(n === 0) return `Haga clic para subir imágenes (máximo ${LIMITES.FOTOS_POR_PRODUCTO})`;
   const base = `${n} imagen${n!==1?'es':''} cargada${n!==1?'s':''} de ${LIMITES.FOTOS_POR_PRODUCTO}`;
   return n >= LIMITES.FOTOS_POR_PRODUCTO ? base + ' — llegaste al máximo' : base;
 }
@@ -2016,7 +2016,7 @@ function agregarFotos(e){
   // 2) Máximo de fotos por producto
   const lugares = LIMITES.FOTOS_POR_PRODUCTO - fotosBase64.length;
   if(lugares <= 0){
-    alert(`Cada producto puede tener como máximo ${LIMITES.FOTOS_POR_PRODUCTO} fotos.\nEliminá alguna para agregar otra.`);
+    alert(`Cada producto puede tener como máximo ${LIMITES.FOTOS_POR_PRODUCTO} fotos.\nElimine alguna para agregar otra.`);
     return;
   }
   if(files.length > lugares){
@@ -2080,7 +2080,7 @@ function leerImagenEnCanvas(file, maxLado, onListo, onError){
   reader.onerror = () => fallar(`No se pudo leer "${file.name}".`);
   reader.onload = ev => {
     const img = new Image();
-    img.onerror = () => fallar(`"${file.name}" no se pudo abrir como imagen. Probá guardarla como JPG o PNG.`);
+    img.onerror = () => fallar(`"${file.name}" no se pudo abrir como imagen. Intente guardarla como JPG o PNG.`);
     img.onload = () => {
       let w = img.width, h = img.height;
       if(w > maxLado){ h = Math.round(h * maxLado / w); w = maxLado; }
@@ -2184,13 +2184,13 @@ async function guardarProducto(){
     tiposSeleccionados.push(nuevaCatInput);
   }
 
-  if(!nombre)    { alert('Por favor ingresá el nombre del producto.'); return; }
-  if(!tiposSeleccionados.length){ alert('Por favor seleccioná al menos una categoría.'); return; }
-  if(!fotosBase64.length){ alert('Por favor subí al menos una foto del producto.'); return; }
+  if(!nombre)    { alert('Por favor, ingrese el nombre del producto.'); return; }
+  if(!tiposSeleccionados.length){ alert('Por favor, seleccione al menos una categoría.'); return; }
+  if(!fotosBase64.length){ alert('Por favor, suba al menos una foto del producto.'); return; }
   // Límite de fotos: se controla solo si hay fotos nuevas (productos viejos con
   // más fotos ya subidas se pueden seguir editando sin tocar sus fotos).
   if(fotosBase64.length > LIMITES.FOTOS_POR_PRODUCTO && fotosBase64.some(esBase64)){
-    alert(`Cada producto puede tener como máximo ${LIMITES.FOTOS_POR_PRODUCTO} fotos. Eliminá ${fotosBase64.length - LIMITES.FOTOS_POR_PRODUCTO} para poder guardar.`);
+    alert(`Cada producto puede tener como máximo ${LIMITES.FOTOS_POR_PRODUCTO} fotos. Elimine ${fotosBase64.length - LIMITES.FOTOS_POR_PRODUCTO} para poder guardar.`);
     return;
   }
 
@@ -2198,8 +2198,8 @@ async function guardarProducto(){
   const esOferta = document.getElementById('a-es-oferta').checked;
   const precioOfertaInput = document.getElementById('a-precio-oferta').value.trim();
   if(esOferta){
-    if(!precio){ alert('Para agregar el producto a Ofertas, ingresá primero el precio original.'); return; }
-    if(!precioOfertaInput){ alert('Ingresá el precio final con descuento para la oferta.'); return; }
+    if(!precio){ alert('Para agregar el producto a Ofertas, ingrese primero el precio original.'); return; }
+    if(!precioOfertaInput){ alert('Ingrese el precio final con descuento para la oferta.'); return; }
   }
   const precioOferta = (esOferta && precioOfertaInput)
     ? '$' + Number(precioOfertaInput.replace(/\D/g, '')).toLocaleString('es-AR')
@@ -2270,7 +2270,7 @@ async function guardarProducto(){
   } catch(err) {
     console.error('Error guardando producto:', err);
     // El modal queda abierto con los datos cargados para poder reintentar
-    mostrarToastError('⚠ No se pudo guardar el producto.<br>' + esc(err && err.message ? err.message : 'Revisá la conexión a internet.') , 12000);
+    mostrarToastError('⚠ No se pudo guardar el producto.<br>' + esc(err && err.message ? err.message : 'Verifique la conexión a internet.') , 12000);
   } finally {
     restaurarBoton();
   }
@@ -2402,7 +2402,7 @@ async function guardarReorden(){
     mostrarToast('Orden guardado ✓');
   } catch(err) {
     console.error('Error guardando orden:', err);
-    mostrarToastError('⚠ Error al guardar. Revisá la conexión, recargar la página.', 7000);
+    mostrarToastError('⚠ Error al guardar. Verifique la conexión y recargue la página.', 7000);
   }
 }
 
@@ -2563,14 +2563,14 @@ function renderCatToggles(){
     item.dataset.index = idx;
     item.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
-        <span class="cat-drag-handle" title="Arrastrá para reordenar">⠿</span>
+        <span class="cat-drag-handle" title="Arrastre para reordenar">⠿</span>
         <button type="button" class="cat-img-btn${mini.nueva ? ' nueva' : ''}" title="Cambiar la imagen de la categoría">
           ${mini.src ? `<img src="${esc(mini.src)}" alt="" draggable="false">` : '<span>+</span>'}
         </button>
         <div style="min-width:0">
           <div class="cat-toggle-name">${esc(cat)}</div>
           <div class="cat-toggle-count">${count} producto${count !== 1 ? 's' : ''}</div>
-          <label class="cat-carrusel-check" title="Si la destildás, esta categoría no aparece en el carrusel de categorías (sigue apareciendo en la página)">
+          <label class="cat-carrusel-check" title="Si la desmarca, esta categoría no aparecerá en el carrusel de categorías (seguirá visible en la página)">
             <input type="checkbox" class="chk-carrusel" ${catFueraCarruselTemp.has(cat) ? '' : 'checked'}> En el carrusel de categorías
           </label>
           <div class="cat-img-estado">${mini.propia ? (mini.nueva ? 'Imagen nueva (se sube al guardar)' : 'Imagen propia') + ' · <a href="#" class="cat-img-quitar">usar la del primer producto</a>' : 'Imagen del primer producto · tocá para cambiarla'}</div>
@@ -2629,7 +2629,7 @@ async function guardarCategorias(){
     await aplicarImagenesCategorias();
   } catch(err) {
     console.error('Error subiendo imágenes de categorías:', err);
-    mostrarToastError('⚠ No se pudo subir la imagen.<br>' + esc(err && err.message ? err.message : 'Revisá la conexión.'), 8000);
+    mostrarToastError('⚠ No se pudo subir la imagen.<br>' + esc(err && err.message ? err.message : 'Verifique la conexión.'), 8000);
     return;
   }
   const checkboxes = document.querySelectorAll('#cat-toggle-list .toggle-switch input[type=checkbox]');
@@ -2646,7 +2646,7 @@ async function guardarCategorias(){
     mostrarToast('Categorías actualizadas ✓');
   } catch(err) {
     console.error('Error guardando categorías:', err);
-    mostrarToastError('⚠ Error al guardar. Revisá la conexión, recargar la página.', 7000);
+    mostrarToastError('⚠ Error al guardar. Verifique la conexión y recargue la página.', 7000);
   }
 }
 
@@ -2701,7 +2701,7 @@ Esta acción no se puede deshacer.` : '');
     mostrarToast('Categoría eliminada ✓');
   } catch(err) {
     console.error('Error eliminando categoría:', err);
-    mostrarToastError('⚠ Error al eliminar. Revisá la conexión y recargá la página.', 7000);
+    mostrarToastError('⚠ Error al eliminar. Verifique la conexión y recargue la página.', 7000);
   }
 }
 
@@ -2727,7 +2727,7 @@ function cargarHeroLogo(e){
     heroLogoImgPendiente = base64;
     document.getElementById('ep-hero-logo-thumb').src = base64;
     document.getElementById('ep-hero-logo-preview').style.display = 'block';
-    document.getElementById('ep-hero-logo-texto').textContent = 'Imagen cargada — clic para cambiar';
+    document.getElementById('ep-hero-logo-texto').textContent = 'Imagen cargada — haga clic para cambiarla';
     const actualEl = document.getElementById('ep-hero-logo-actual');
     if(actualEl) actualEl.style.display = 'none';
   });
@@ -2741,7 +2741,7 @@ function cargarNavLogo(e){
     navLogoImgPendiente = base64;
     document.getElementById('ep-nav-logo-thumb').src = base64;
     document.getElementById('ep-nav-logo-preview').style.display = 'block';
-    document.getElementById('ep-nav-logo-texto').textContent = 'Imagen cargada — clic para cambiar';
+    document.getElementById('ep-nav-logo-texto').textContent = 'Imagen cargada — haga clic para cambiarla';
     const actualEl = document.getElementById('ep-nav-logo-actual');
     if(actualEl) actualEl.style.display = 'none';
   });
@@ -2783,10 +2783,10 @@ function abrirModalEditarPagina(){
   if(C._heroLogoImg && heroLogoActual){
     heroLogoActual.style.display = 'block';
     document.getElementById('ep-hero-logo-actual-img').src = cldUrl(C._heroLogoImg, CLD_LOGO);
-    document.getElementById('ep-hero-logo-texto').textContent = 'Clic para cambiar la imagen del título';
+    document.getElementById('ep-hero-logo-texto').textContent = 'Haga clic para cambiar la imagen del título';
   } else if(heroLogoActual){
     heroLogoActual.style.display = 'none';
-    document.getElementById('ep-hero-logo-texto').textContent = 'Hacé clic para subir la imagen del título';
+    document.getElementById('ep-hero-logo-texto').textContent = 'Haga clic para subir la imagen del título';
   }
 
   // ── Nav logo image ────────────────────────────────
@@ -2798,10 +2798,10 @@ function abrirModalEditarPagina(){
   if(navActualSrc && navLogoActual){
     navLogoActual.style.display = 'block';
     document.getElementById('ep-nav-logo-actual-img').src = cldUrl(navActualSrc, CLD_LOGO);
-    document.getElementById('ep-nav-logo-texto').textContent = 'Clic para cambiar la imagen del NAV';
+    document.getElementById('ep-nav-logo-texto').textContent = 'Haga clic para cambiar la imagen de la barra superior';
   } else if(navLogoActual){
     navLogoActual.style.display = 'none';
-    document.getElementById('ep-nav-logo-texto').textContent = 'Hacé clic para subir la imagen del NAV';
+    document.getElementById('ep-nav-logo-texto').textContent = 'Haga clic para subir la imagen de la barra superior';
   }
 
   // Rellenar campos Hero
@@ -2818,10 +2818,10 @@ function abrirModalEditarPagina(){
   if(C._nosotrosImg){
     thumb.src = cldUrl(C._nosotrosImg, CLD_LOGO);
     preview.style.display = 'block';
-    document.getElementById('ep-nosotros-img-texto').textContent = 'Imagen cargada — clic para cambiar';
+    document.getElementById('ep-nosotros-img-texto').textContent = 'Imagen cargada — haga clic para cambiarla';
   } else {
     preview.style.display = 'none';
-    document.getElementById('ep-nosotros-img-texto').textContent = 'Hacé clic para cambiar la imagen';
+    document.getElementById('ep-nosotros-img-texto').textContent = 'Haga clic para cambiar la imagen';
   }
 
   // Rellenar campos Nosotros
@@ -2881,7 +2881,7 @@ function usarImagenNosotrosOriginal(){
   const original = document.querySelector('.about-img-placeholder img');
   document.getElementById('ep-nosotros-img-thumb').src = (original && original.dataset.srcOriginal) || 'img/logo.png';
   document.getElementById('ep-nosotros-img-preview').style.display = 'block';
-  document.getElementById('ep-nosotros-img-texto').textContent = 'Se va a usar la imagen original — clic para subir otra';
+  document.getElementById('ep-nosotros-img-texto').textContent = 'Se utilizará la imagen original — haga clic para subir otra';
 }
 
 function cargarImagenNosotros(e){
@@ -2894,7 +2894,7 @@ function cargarImagenNosotros(e){
     nosotrosUsarOriginal = false;
     document.getElementById('ep-nosotros-img-thumb').src = base64;
     document.getElementById('ep-nosotros-img-preview').style.display = 'block';
-    document.getElementById('ep-nosotros-img-texto').textContent = 'Imagen cargada — clic para cambiar';
+    document.getElementById('ep-nosotros-img-texto').textContent = 'Imagen cargada — haga clic para cambiarla';
   });
   e.target.value = '';
 }
@@ -2937,7 +2937,12 @@ async function guardarEditarPagina(){
     }
     const videosFinal = videosEditando
       .filter(v => v.url)
-      .map(v => ({ url: v.url, pos: v.pos, auto: !!v.auto, orden: v.orden ?? 0 }));
+      .map(v => {
+        const o = { url: v.url, pos: v.pos, auto: !!v.auto, orden: v.orden ?? 0 };
+        const est = estiloGuardable(v.estilo, 'video');
+        if(est) o.estilo = est;
+        return o;
+      });
 
     // Imágenes decorativas nuevas (máx 5, ya comprimidas bajo el límite del plan)
     if(imagenesEditando.length > LIMITES.IMAGENES_DECO){
@@ -2957,6 +2962,8 @@ async function guardarEditarPagina(){
       .map(v => {
         const o = { url: v.url, pos: v.pos, orden: v.orden ?? 0 };
         if(v.w > 0 && v.h > 0){ o.w = v.w; o.h = v.h; }
+        const est = estiloGuardable(v.estilo, 'imagen');
+        if(est) o.estilo = est;
         return o;
       });
 
@@ -3030,7 +3037,7 @@ async function guardarEditarPagina(){
     mostrarToast('Cambios guardados ✓');
   } catch(err){
     console.error('Error guardando configEditable:', err);
-    mostrarToastError('⚠ No se pudieron guardar los cambios.<br>' + esc(err && err.message ? err.message : 'Revisá la conexión.'), 10000);
+    mostrarToastError('⚠ No se pudieron guardar los cambios.<br>' + esc(err && err.message ? err.message : 'Verifique la conexión.'), 10000);
   } finally {
     if(btnGuardar){ btnGuardar.disabled = false; btnGuardar.textContent = 'Guardar cambios'; }
   }
@@ -3065,12 +3072,15 @@ function normalizarVideos(lista){
   return lista.map((v, i) => {
     if(typeof v === 'string') v = { url: v, pos: POS_VIDEO_DEFAULT, auto: true };
     if(!v || typeof v.url !== 'string') return null;
-    return {
+    const out = {
       url: v.url,
       pos: posValida(v.pos) ? v.pos : POS_VIDEO_DEFAULT,
       auto: !!v.auto,
       orden: typeof v.orden === 'number' ? v.orden : i
     };
+    const est = estiloGuardable(v.estilo, 'video');
+    if(est) out.estilo = est;
+    return out;
   }).filter(Boolean).map((v, i, arr) => {
     // Nunca más de LIMITES.VIDEOS_AUTO automáticos (los extra pasan a "tocar para ver")
     const autosAntes = arr.slice(0, i).filter(x => x.auto).length;
@@ -3089,6 +3099,8 @@ function normalizarImagenes(lista){
     };
     // Ancho/alto originales: sirven para reservar el lugar antes de que cargue
     if(v.w > 0 && v.h > 0){ out.w = Math.round(v.w); out.h = Math.round(v.h); }
+    const est = estiloGuardable(v.estilo, 'imagen');
+    if(est) out.estilo = est;
     return out;
   }).filter(Boolean).slice(0, LIMITES.IMAGENES_DECO);
 }
@@ -3124,13 +3136,13 @@ function agregarVideoInicio(e){
   e.target.value = '';
   if(!file) return;
   if(videosEditando.length >= LIMITES.VIDEOS_INICIO){
-    alert(`Ya hay ${LIMITES.VIDEOS_INICIO} videos. Eliminá uno para agregar otro.`);
+    alert(`Ya hay ${LIMITES.VIDEOS_INICIO} videos. Elimine uno para agregar otro.`);
     return;
   }
   const err = validarArchivoVideo(file);
   if(err){ alert(err); return; }
   if(file.size > LIMITES.VIDEO_AVISO_BYTES &&
-     !confirm(`El video pesa ${formatoMB(file.size)}. Se puede subir, pero conviene que sea corto y liviano (menos de ${formatoMB(LIMITES.VIDEO_AVISO_BYTES)}).\n\n¿Subirlo igual?`)){
+     !confirm(`El video pesa ${formatoMB(file.size)}. Se puede subir, pero se recomienda que sea corto y liviano (menos de ${formatoMB(LIMITES.VIDEO_AVISO_BYTES)}).\n\n¿Subirlo igual?`)){
     return;
   }
   // Por defecto: "tocar para ver" (es lo que menos gasta del plan)
@@ -3149,7 +3161,7 @@ function cambiarAutoVideo(i, auto){
   if(!videosEditando[i]) return;
   const yaAuto = videosEditando.filter((v, k) => k !== i && v.auto).length;
   if(auto && yaAuto >= LIMITES.VIDEOS_AUTO){
-    alert('Solo 1 video puede reproducirse automáticamente.\n\nPor la cuota del plan gratuito (Cloudinary, donde se alojan los videos), no se pueden poner 2 o más videos automáticos. Desmarcá "Reproducir solo" en el otro video si querés cambiarlo.');
+    alert('Solo 1 video puede reproducirse automáticamente.\n\nPor la cuota del plan gratuito (Cloudinary, donde se alojan los videos), no se pueden configurar 2 o más videos automáticos. Desmarque "Reproducir solo" en el otro video si desea cambiarlo.');
     renderListaVideosEP();
     return;
   }
@@ -3186,11 +3198,11 @@ function agregarImagenDeco(e){
   files = files.filter(f => { const err = validarArchivoFoto(f); if(err) errores.push(err); return !err; });
   const lugares = LIMITES.IMAGENES_DECO - imagenesEditando.length;
   if(lugares <= 0){
-    alert(`Ya hay ${LIMITES.IMAGENES_DECO} imágenes. Eliminá una para agregar otra.`);
+    alert(`Ya hay ${LIMITES.IMAGENES_DECO} imágenes. Elimine una para agregar otra.`);
     return;
   }
   if(files.length > lugares){
-    errores.push(`Se pueden poner hasta ${LIMITES.IMAGENES_DECO} imágenes: se agregaron solo ${lugares} de las ${files.length} elegidas.`);
+    errores.push(`Se pueden agregar hasta ${LIMITES.IMAGENES_DECO} imágenes: se agregaron solo ${lugares} de las ${files.length} elegidas.`);
     files = files.slice(0, lugares);
   }
   if(errores.length) alert(errores.join('\n\n'));
@@ -3256,7 +3268,8 @@ function renderListaVideosEP(){
       ${v.file ? '<span class="ep-video-pendiente">NUEVO</span>' : ''}
       <button type="button" class="foto-thumb-remove" title="Quitar video" onclick="quitarVideoInicio(${i})">×</button>
       <small><strong>Video ${v.num}</strong>${v.file ? ' · ' + esc(formatoMB(v.file.size)) : ''}</small>
-      <div class="ep-video-pos" title="Para cambiarlo usá «Acomodar en la página»">📍 ${esc(etiquetaPosVideo(v.pos))}</div>
+      <div class="ep-video-pos" title="Para cambiarlo utilice «Organizar videos e imágenes en la página»">📍 ${esc(etiquetaPosVideo(v.pos))}</div>
+      <div class="ep-video-pos" title="Para cambiarlo utilice «Forma, tamaño y marco»">🎨 ${esc(etiquetaEstilo(v, 'video'))}</div>
       <label class="ep-video-auto${!v.auto && hayAuto ? ' bloqueado' : ''}" title="${!v.auto && hayAuto ? 'Ya hay 1 video automático (máximo permitido por la cuota del plan gratuito)' : ''}"><input type="checkbox" ${v.auto ? 'checked' : ''} onchange="cambiarAutoVideo(${i}, this.checked)"> Reproducir solo</label>
     </div>`).join('');
   const lleno = n >= LIMITES.VIDEOS_INICIO;
@@ -3264,8 +3277,8 @@ function renderListaVideosEP(){
   if(label) label.classList.toggle('deshabilitado', lleno);
   const txt = document.getElementById('ep-video-texto');
   if(txt) txt.textContent = lleno
-    ? `Máximo alcanzado (${LIMITES.VIDEOS_INICIO} de ${LIMITES.VIDEOS_INICIO}) — quitá uno para agregar otro`
-    : `Hacé clic para agregar un video (${n} de ${LIMITES.VIDEOS_INICIO})`;
+    ? `Máximo alcanzado (${LIMITES.VIDEOS_INICIO} de ${LIMITES.VIDEOS_INICIO}) — quite uno para agregar otro`
+    : `Haga clic para agregar un video (${n} de ${LIMITES.VIDEOS_INICIO})`;
 
   // Imágenes decorativas
   const listaImg = document.getElementById('ep-imagenes-lista');
@@ -3277,7 +3290,8 @@ function renderListaVideosEP(){
         ${v.b64 ? '<span class="ep-video-pendiente">NUEVA</span>' : ''}
         <button type="button" class="foto-thumb-remove" title="Quitar imagen" onclick="quitarImagenDeco(${i})">×</button>
         <small><strong>Imagen ${v.num}</strong>${v.b64 ? ' · ' + esc(formatoMB(tamanoArchivo(v.b64))) : ''}</small>
-        <div class="ep-video-pos" title="Para cambiarlo usá «Acomodar en la página»">📍 ${esc(etiquetaPosVideo(v.pos))}</div>
+        <div class="ep-video-pos" title="Para cambiarlo utilice «Organizar videos e imágenes en la página»">📍 ${esc(etiquetaPosVideo(v.pos))}</div>
+        <div class="ep-video-pos" title="Para cambiarlo utilice «Forma, tamaño y marco»">🎨 ${esc(etiquetaEstilo(v, 'imagen'))}</div>
       </div>`).join('');
   }
   const llenoImg = ni >= LIMITES.IMAGENES_DECO;
@@ -3285,11 +3299,13 @@ function renderListaVideosEP(){
   if(labelImg) labelImg.classList.toggle('deshabilitado', llenoImg);
   const txtImg = document.getElementById('ep-imagen-texto');
   if(txtImg) txtImg.textContent = llenoImg
-    ? `Máximo alcanzado (${LIMITES.IMAGENES_DECO} de ${LIMITES.IMAGENES_DECO}) — quitá una para agregar otra`
-    : `Hacé clic para agregar imágenes (${ni} de ${LIMITES.IMAGENES_DECO})`;
+    ? `Máximo alcanzado (${LIMITES.IMAGENES_DECO} de ${LIMITES.IMAGENES_DECO}) — quite una para agregar otra`
+    : `Haga clic para agregar imágenes (${ni} de ${LIMITES.IMAGENES_DECO})`;
 
   const btnAcomodar = document.getElementById('ep-btn-acomodar');
   if(btnAcomodar) btnAcomodar.style.display = (n + ni) ? '' : 'none';
+  const btnEstilo = document.getElementById('ep-btn-estilo');
+  if(btnEstilo) btnEstilo.style.display = (n + ni) ? '' : 'none';
 }
 
 // ════════════════════════════════════════════════════════
@@ -3308,7 +3324,7 @@ function zonasDisponibles(){
 }
 
 function abrirAcomodarVideos(){
-  if(!videosEditando.length && !imagenesEditando.length){ alert('Primero agregá al menos un video o una imagen.'); return; }
+  if(!videosEditando.length && !imagenesEditando.length){ alert('Primero agregue al menos un video o una imagen.'); return; }
   asignarNumerosVideos(videosEditando);
   asignarNumerosVideos(imagenesEditando);
   const zonas = zonasDisponibles();
@@ -3360,7 +3376,7 @@ function moverVideoEnEsquema(idx, pos, antesDe){
 function chipVideoHTML(v, idx){
   const esImg = v.tipo === 'imagen';
   return `<div class="vl-chip${esImg ? ' vl-chip-imagen' : ''}${layoutSel === idx ? ' seleccionado' : ''}" draggable="true" data-idx="${idx}"
-      title="Arrastralo (o tocalo y después tocá dónde ponerlo)">
+      title="Arrástrelo, o tóquelo y luego seleccione la ubicación">
     <div class="vl-chip-img">${esImg ? miniaturaImagen(v) : miniaturaVideo(v)}</div>
     <div class="vl-chip-txt">
       <strong>${esc(nombreElemento(v))}</strong>
@@ -3374,7 +3390,7 @@ function zonaVideosHTML(pos, extraClase){
   const items = layoutDraft.map((v, i) => ({ v, i })).filter(x => x.v.pos === pos);
   return `<div class="vl-zona${extraClase ? ' ' + extraClase : ''}${items.length ? ' con-videos' : ''}${layoutSel != null ? ' esperando' : ''}" data-pos="${esc(pos)}">
     ${items.map(x => chipVideoHTML(x.v, x.i)).join('')}
-    <div class="vl-zona-hint">${layoutSel != null ? '⬇ Tocá acá para ponerlo' : (items.length ? 'Soltá acá para agregar otro' : 'Soltá acá')}</div>
+    <div class="vl-zona-hint">${layoutSel != null ? '⬇ Presione aquí para ubicarlo' : (items.length ? 'Suelte aquí para agregar otro' : 'Suelte aquí')}</div>
   </div>`;
 }
 
@@ -3450,10 +3466,270 @@ function renderEsquemaVideos(){
   const ayuda = document.getElementById('vl-ayuda-sel');
   if(ayuda){
     ayuda.textContent = layoutSel !== null
-      ? `${nombreElemento(layoutDraft[layoutSel])} seleccionado: tocá el lugar de la página donde lo querés poner (o tocalo de nuevo para soltarlo).`
+      ? `${nombreElemento(layoutDraft[layoutSel])} seleccionado: presione la ubicación deseada de la página (o tóquelo nuevamente para deseleccionarlo).`
       : '';
     ayuda.style.display = layoutSel !== null ? 'block' : 'none';
   }
+}
+
+// ════════════════════════════════════════════════════════
+//  FORMATO de videos e imágenes: forma (original / cuadrado / círculo),
+//  tamaño, esquinas redondeadas, marco y sombra.
+//  Las medidas están pensadas para una pantalla de compu de ~1200 px de
+//  ancho; la vista previa usa exactamente las mismas cuentas, a escala.
+//  Sin "estilo" guardado, el elemento se ve como siempre (CSS original).
+// ════════════════════════════════════════════════════════
+const FORMAS_MEDIO = ['original', 'cuadrado', 'circulo'];
+const ALINEACIONES_MEDIO = ['centro', 'izquierda', 'derecha'];
+const MEDIO_BASE = { video: { w: 720, h: 600 }, imagen: { w: 1100, h: 700 }, lado: 520 };
+const PAGINA_REF_ANCHO = 1200;
+const COLORES_MARCO = ['#ffffff', '#d15b76', '#f3d6de', '#c9a96e', '#2b2b2b'];
+
+function estiloPorDefecto(tipo){
+  return { forma: 'original', tam: 100, radio: 4, marco: 0, marcoColor: '#ffffff', sombra: tipo === 'video', alinear: 'centro' };
+}
+
+function normalizarEstilo(e, tipo){
+  const d = estiloPorDefecto(tipo);
+  if(!e || typeof e !== 'object') return d;
+  const num = (x, min, max, def) => { x = Number(x); return Number.isFinite(x) ? Math.min(max, Math.max(min, Math.round(x))) : def; };
+  return {
+    forma: FORMAS_MEDIO.includes(e.forma) ? e.forma : d.forma,
+    tam: num(e.tam, 20, 100, d.tam),
+    radio: num(e.radio, 0, 80, d.radio),
+    marco: num(e.marco, 0, 20, d.marco),
+    marcoColor: /^#[0-9a-f]{6}$/i.test(e.marcoColor || '') ? e.marcoColor.toLowerCase() : d.marcoColor,
+    sombra: typeof e.sombra === 'boolean' ? e.sombra : d.sombra,
+    alinear: ALINEACIONES_MEDIO.includes(e.alinear) ? e.alinear : d.alinear
+  };
+}
+
+// Devuelve el estilo a guardar, o null si es el de siempre (no se guarda nada)
+function estiloGuardable(e, tipo){
+  if(!e) return null;
+  const n = normalizarEstilo(e, tipo);
+  return JSON.stringify(n) === JSON.stringify(estiloPorDefecto(tipo)) ? null : n;
+}
+
+function etiquetaEstilo(v, tipo){
+  const e = normalizarEstilo(v.estilo, tipo);
+  const forma = { original: 'Forma original', cuadrado: 'Cuadrado', circulo: 'Círculo' }[e.forma];
+  const partes = [forma, e.tam + '%'];
+  if(e.marco > 0) partes.push('marco ' + e.marco + ' px');
+  if(e.alinear !== 'centro') partes.push('a la ' + e.alinear);
+  return partes.join(' · ');
+}
+
+// Estilos en línea del contenedor (wrap) y del video/imagen (media).
+// k = escala (1 en la página; menor en la vista previa).
+// publico = true agrega los topes por ancho de pantalla (celulares).
+function estilosMedio(v, tipo, k, publico){
+  const e = normalizarEstilo(v.estilo, tipo);
+  const px = n => (Math.round(n * k * 10) / 10) + 'px';
+  const topeAncho = n => publico ? `min(${px(n)}, calc(100vw - 2.5rem))` : px(n);
+  const s = e.tam / 100;
+  const wrap = [], media = [];
+  if(e.forma === 'original'){
+    if(tipo === 'imagen' && v.w > 0 && v.h > 0){
+      const b = MEDIO_BASE.imagen;
+      const ancho = Math.min(v.w, b.w * s, b.h * s * v.w / v.h);
+      media.push(`width:${topeAncho(ancho)}`, 'height:auto', `aspect-ratio:${v.w}/${v.h}`, 'max-width:none', 'max-height:none');
+    } else {
+      const b = MEDIO_BASE[tipo] || MEDIO_BASE.imagen;
+      const altoMax = publico ? `min(${px(b.h * s)}, ${tipo === 'video' ? '75vh' : '80vh'})` : px(b.h * s);
+      media.push('width:auto', 'height:auto', `max-width:${topeAncho(b.w * s)}`, `max-height:${altoMax}`);
+    }
+    wrap.push(`border-radius:${px(e.radio)}`);
+  } else {
+    wrap.push(`width:${topeAncho(MEDIO_BASE.lado * s)}`, 'aspect-ratio:1/1');
+    media.push('width:100%', 'height:100%', 'max-width:none', 'max-height:none', 'object-fit:cover');
+    wrap.push(`border-radius:${e.forma === 'circulo' ? '50%' : px(e.radio)}`);
+  }
+  wrap.push(e.marco > 0 ? `border:${Math.max(1, Math.round(e.marco * k))}px solid ${e.marcoColor}` : 'border:0');
+  wrap.push(`box-shadow:${e.sombra ? `0 ${px(10)} ${px(25)} rgba(0,0,0,0.14)` : 'none'}`);
+  // Alineación dentro del ancho de contenido de la página (márgenes automáticos)
+  wrap.push({ izquierda: 'margin:0 auto 0 0', derecha: 'margin:0 0 0 auto', centro: 'margin:0 auto' }[e.alinear]);
+  const alinearFlex = { izquierda: 'flex-start', derecha: 'flex-end', centro: 'center' }[e.alinear];
+  return { wrap: wrap.join(';'), media: media.join(';'), forma: e.forma, alinearFlex };
+}
+
+// ── Ventana "Formato de videos e imágenes" ──
+// Se trabaja sobre una copia: "Aplicar" la confirma, "Cancelar" la descarta.
+let estiloDraft = [];   // [{ tipo, i, v (copia), estilo }]
+let estiloSel = 0;
+let estiloResizeTimer = null;
+
+function abrirEstiloMedios(){
+  if(!videosEditando.length && !imagenesEditando.length){ alert('Primero agregue al menos un video o una imagen.'); return; }
+  asignarNumerosVideos(videosEditando);
+  asignarNumerosVideos(imagenesEditando);
+  const zonas = zonasDisponibles();
+  estiloDraft = [
+    ...videosEditando.map((v, i) => ({ tipo: 'video', i, v })),
+    ...imagenesEditando.map((v, i) => ({ tipo: 'imagen', i, v }))
+  ].map(x => ({
+    ...x,
+    pos: zonas.includes(x.v.pos) ? x.v.pos : 'productos',
+    estilo: normalizarEstilo(x.v.estilo, x.tipo)
+  })).sort((a, b) => (a.v.orden ?? 0) - (b.v.orden ?? 0));
+  estiloSel = 0;
+  document.getElementById('video-estilo-modal').classList.add('active');
+  renderColoresMarco();
+  renderEsquemaEstilo();
+  sincronizarPanelEstilo();
+  window.addEventListener('resize', alRedimensionarEstilo);
+}
+
+function cerrarEstiloMedios(aplicar){
+  if(aplicar){
+    estiloDraft.forEach(x => {
+      const lista = x.tipo === 'video' ? videosEditando : imagenesEditando;
+      if(!lista[x.i]) return;
+      const est = estiloGuardable(x.estilo, x.tipo);
+      if(est) lista[x.i].estilo = est; else delete lista[x.i].estilo;
+    });
+    renderListaVideosEP();
+  }
+  estiloDraft = [];
+  window.removeEventListener('resize', alRedimensionarEstilo);
+  document.getElementById('video-estilo-modal').classList.remove('active');
+}
+
+function alRedimensionarEstilo(){
+  clearTimeout(estiloResizeTimer);
+  estiloResizeTimer = setTimeout(() => { if(estiloDraft.length) renderEsquemaEstilo(); }, 150);
+}
+
+function escalaEsquemaEstilo(){
+  const cont = document.getElementById('ve-esquema');
+  const ancho = cont ? cont.clientWidth - 20 : 500;
+  return Math.max(0.15, ancho / PAGINA_REF_ANCHO);
+}
+
+function previewMedioHTML(x, idx, k){
+  const v = { ...x.v, estilo: x.estilo };
+  const st = estilosMedio(v, x.tipo, k, false);
+  let media;
+  if(x.tipo === 'imagen'){
+    const src = x.v.b64 || cldUrl(x.v.url, CLD_DECO_CEL);
+    media = `<img src="${esc(src)}" alt="" draggable="false" style="${st.media}">`;
+  } else if(x.v.file){
+    media = `<video src="${esc(x.v.preview)}" muted playsinline preload="metadata" style="${st.media}"></video>`;
+  } else {
+    media = `<img src="${esc(cldVideoUrl(x.v.url, CLD_VIDEO_POSTER, 'jpg'))}" alt="" draggable="false" style="${st.media}">`;
+  }
+  const nombre = (x.tipo === 'imagen' ? 'Imagen ' : 'Video ') + x.v.num;
+  return `<div class="ve-item${idx === estiloSel ? ' seleccionado' : ''}" data-idx="${idx}" title="Seleccionar ${esc(nombre)}" style="align-self:${st.alinearFlex}">
+    <div class="ve-medio medio-estilo${x.tipo === 'video' ? ' ve-medio-video' : ''}" style="${st.wrap}">${media}${x.tipo === 'video' ? '<span class="ve-play">▶</span>' : ''}</div>
+    <span class="ve-etq">${esc(nombre)}</span>
+  </div>`;
+}
+
+function renderEsquemaEstilo(){
+  const cont = document.getElementById('ve-esquema');
+  if(!cont) return;
+  const k = escalaEsquemaEstilo();
+  const zona = pos => {
+    const items = estiloDraft.map((x, i) => ({ x, i })).filter(o => o.x.pos === pos);
+    if(!items.length) return '';
+    // El interior representa el ancho de contenido de la página (1100 px)
+    return `<div class="ve-zona" style="padding:${Math.max(8, 48 * k)}px 0"><div class="ve-contenido" style="width:${Math.round(1100 * k)}px;gap:${Math.max(6, 32 * k)}px">${items.map(o => previewMedioHTML(o.x, o.i, k)).join('')}</div></div>`;
+  };
+  const cats = categoriasEnPagina.map(c => {
+    const z = zona('cat:' + c);
+    return `<div class="vl-cat"><span>Categoría: ${esc(c)}</span><div class="vl-prod-grid"><i></i><i></i><i></i><i></i></div></div>${z}`;
+  }).join('');
+  cont.innerHTML = `
+    <div class="vl-bloque vl-nav">Barra de menú</div>
+    <div class="vl-bloque vl-hero"><span>Título principal</span><small>Portada de la página</small></div>
+    ${zona('hero')}
+    <div class="vl-bloque vl-nos"><span>Nosotros</span><div class="vl-nos-fig"><i></i><b></b></div></div>
+    ${zona('nosotros')}
+    <div class="vl-bloque vl-prod">
+      <span>Productos</span>
+      ${cats || '<div class="vl-prod-grid"><i></i><i></i><i></i><i></i></div>'}
+    </div>
+    ${zona('productos')}
+    <div class="vl-bloque vl-cont"><span>Contacto</span></div>
+    ${zona('final')}
+    <div class="vl-bloque vl-pie">Pie de página</div>`;
+  cont.querySelectorAll('.ve-item').forEach(el => {
+    el.addEventListener('click', () => {
+      estiloSel = Number(el.dataset.idx);
+      cont.querySelectorAll('.ve-item').forEach(o => o.classList.toggle('seleccionado', o === el));
+      sincronizarPanelEstilo();
+    });
+  });
+}
+
+// Actualiza solo el elemento modificado (sin recargar los demás)
+function refrescarItemEstilo(idx){
+  const x = estiloDraft[idx];
+  const el = document.querySelector(`#ve-esquema .ve-item[data-idx="${idx}"]`);
+  if(!x || !el) return;
+  const st = estilosMedio({ ...x.v, estilo: x.estilo }, x.tipo, escalaEsquemaEstilo(), false);
+  el.style.alignSelf = st.alinearFlex;
+  const wrap = el.querySelector('.ve-medio');
+  wrap.style.cssText = st.wrap;
+  const media = wrap.querySelector('img, video');
+  if(media) media.style.cssText = st.media;
+}
+
+function renderColoresMarco(){
+  const cont = document.getElementById('ve-colores');
+  if(!cont) return;
+  cont.innerHTML = COLORES_MARCO.map(c =>
+    `<button type="button" class="ve-color" data-color="${c}" style="background:${c}" title="${c}" onclick="cambiarEstiloMedio('marcoColor','${c}')"></button>`
+  ).join('') + `<label class="ve-color ve-color-libre" title="Otro color"><input type="color" id="ve-color" oninput="cambiarEstiloMedio('marcoColor', this.value)">＋</label>`;
+}
+
+function sincronizarPanelEstilo(){
+  const x = estiloDraft[estiloSel];
+  if(!x) return;
+  const e = x.estilo;
+  document.getElementById('ve-sel-nombre').textContent = 'Seleccionado: ' + (x.tipo === 'imagen' ? 'Imagen ' : 'Video ') + x.v.num;
+  document.querySelectorAll('#ve-formas button').forEach(b => b.classList.toggle('activo', b.dataset.forma === e.forma));
+  document.querySelectorAll('#ve-alinear button').forEach(b => b.classList.toggle('activo', b.dataset.alinear === e.alinear));
+  document.getElementById('ve-tam').value = e.tam;
+  document.getElementById('ve-tam-val').textContent = e.tam + '%';
+  document.getElementById('ve-radio').value = e.radio;
+  document.getElementById('ve-radio-val').textContent = e.radio + ' px';
+  document.getElementById('ve-radio-fila').style.display = e.forma === 'circulo' ? 'none' : '';
+  document.getElementById('ve-marco').value = e.marco;
+  document.getElementById('ve-marco-val').textContent = e.marco ? e.marco + ' px' : 'Sin marco';
+  document.getElementById('ve-colores').classList.toggle('deshabilitado', !e.marco);
+  document.querySelectorAll('#ve-colores .ve-color[data-color]').forEach(b => b.classList.toggle('activo', b.dataset.color === e.marcoColor));
+  const libre = document.getElementById('ve-color');
+  if(libre) libre.value = e.marcoColor;
+  document.getElementById('ve-sombra').checked = !!e.sombra;
+}
+
+function cambiarEstiloMedio(campo, valor){
+  const x = estiloDraft[estiloSel];
+  if(!x) return;
+  if(campo === 'marcoColor' && !x.estilo.marco) x.estilo.marco = 4;   // elegir color sin marco: se activa uno fino
+  x.estilo = normalizarEstilo({ ...x.estilo, [campo]: valor }, x.tipo);
+  refrescarItemEstilo(estiloSel);
+  sincronizarPanelEstilo();
+}
+
+function restablecerEstiloMedio(){
+  const x = estiloDraft[estiloSel];
+  if(!x) return;
+  x.estilo = estiloPorDefecto(x.tipo);
+  refrescarItemEstilo(estiloSel);
+  sincronizarPanelEstilo();
+}
+
+function copiarEstiloATodos(){
+  const x = estiloDraft[estiloSel];
+  if(!x) return;
+  estiloDraft.forEach((o, i) => {
+    if(i === estiloSel) return;
+    o.estilo = normalizarEstilo({ ...x.estilo }, o.tipo);
+    refrescarItemEstilo(i);
+  });
+  mostrarToast('Formato aplicado a todos los elementos ✓');
 }
 
 // Arma el HTML de un video para la página pública.
@@ -3464,20 +3740,33 @@ function htmlVideoCard(v){
   const poster   = cldVideoUrl(v.url, CLD_VIDEO_POSTER, 'jpg');
   // Si la versión liviana todavía no está lista, el navegador usa el original
   const fuentes = `<source data-src="${esc(liviano)}" type="video/mp4"><source data-src="${esc(v.url)}">`;
+  const st = v.estilo ? estilosMedio(v, 'video', 1, true) : null;
+  const clase = st ? ` medio-estilo forma-${st.forma}` : '';
+  const wrapSt = st ? ` style="${st.wrap}"` : '';
+  const mediaSt = st ? ` style="${st.media}"` : '';
   if(v.auto){
-    return `<div class="video-card" data-auto="1">
-      <video muted loop playsinline preload="none" poster="${esc(poster)}">${fuentes}</video>
+    return `<div class="video-card${clase}" data-auto="1"${wrapSt}>
+      <video muted loop playsinline preload="none" poster="${esc(poster)}"${mediaSt}>${fuentes}</video>
       <button type="button" class="video-sonido" title="Activar sonido" aria-label="Activar sonido">🔇</button>
     </div>`;
   }
-  return `<div class="video-card">
-    <video playsinline preload="none" poster="${esc(poster)}">${fuentes}</video>
+  return `<div class="video-card${clase}"${wrapSt}>
+    <video playsinline preload="none" poster="${esc(poster)}"${mediaSt}>${fuentes}</video>
     <button type="button" class="video-play" aria-label="Reproducir video"><span>▶</span></button>
   </div>`;
 }
 
 // Imagen decorativa: se descarga recién cuando se acerca a la pantalla
 function htmlImagenDeco(v){
+  if(v.estilo){
+    const st = estilosMedio(v, 'imagen', 1, true);
+    const attrs = v.w && v.h ? `width="${v.w}" height="${v.h}"` : '';
+    return `<figure class="deco-img medio-estilo forma-${st.forma}" style="${st.wrap}">
+    <img ${attrs} style="${st.media}" src="${esc(cldUrl(v.url, CLD_DECO_PC))}"
+         srcset="${esc(cldUrl(v.url, CLD_DECO_CEL))} 800w, ${esc(cldUrl(v.url, CLD_DECO_PC))} 1400w"
+         sizes="(max-width: 760px) 100vw, 1100px" alt="" loading="lazy" decoding="async">
+  </figure>`;
+  }
   // Con medidas: el lugar queda reservado (la página no "salta" al cargar).
   // Sin medidas (imágenes viejas): un tamaño mínimo hasta que cargue.
   const medidas = v.w && v.h
@@ -3567,7 +3856,15 @@ function renderVideosInicio(){
     if(btnPlay){
       btnPlay.addEventListener('click', () => {
         cargarFuentesVideo(video);
-        video.controls = true;
+        if(card.classList.contains('forma-circulo')){
+          // En círculo la barra de controles quedaría recortada: se pausa/reanuda tocando el video
+          if(!video.dataset.toque){
+            video.dataset.toque = '1';
+            video.addEventListener('click', () => { if(video.paused) video.play().catch(() => {}); else video.pause(); });
+          }
+        } else {
+          video.controls = true;
+        }
         card.classList.add('reproduciendo');
         video.play().catch(() => {});
       });
@@ -3673,7 +3970,7 @@ async function publicadaCambio(){
 
 // "Ya lo revisé": toma la página publicada actual como punto de partida
 async function ignorarAvisoBorrador(){
-  if(!confirm('¿Ocultar el aviso?\n\nHacelo solo si ya revisaste la página publicada (botón «Ver publicada») y sabés que no hay cambios importantes que se vayan a perder al publicar.')) return;
+  if(!confirm('¿Ocultar el aviso?\n\nRealice esta acción solo si ya revisó la página publicada (botón «Ver publicada») y confirmó que no hay cambios importantes que puedan perderse al publicar.')) return;
   try {
     await ESTADO_BORRADOR_REF.set({ baseHuella: await huellaDatos(REFS_PUBLICO), baseTs: await lastModifiedPublicado() }, { merge: true });
     actualizarAvisoBorrador().catch(() => {});
@@ -3693,7 +3990,7 @@ async function lastModifiedPublicado(){
 async function prepararBorrador(user){
   ES_PUBLICADOR = await calcularEsPublicador(user);
   if(!ES_PUBLICADOR){
-    alert('El modo borrador (?admin2) es solo para el administrador técnico.\n\nVas a entrar al modo administrador normal.');
+    alert('El modo borrador (?admin2) es solo para el administrador técnico.\n\nIngresará al modo administrador estándar.');
     location.href = location.pathname + '?admin';
     return new Promise(() => {});   // no sigue cargando
   }
@@ -3716,7 +4013,7 @@ function arrancarBorrador(user){
   prepararBorrador(user).then(() => resolverBorradorListo()).catch(err => {
     borradorArrancado = false;
     console.error('Error preparando el borrador:', err);
-    mostrarToastError('⚠ No se pudo abrir el borrador. ¿Publicaste las reglas nuevas de Firestore?<br>' + esc(err && err.message ? err.message : ''), 15000);
+    mostrarToastError('⚠ No se pudo abrir el borrador. ¿Se publicaron las reglas nuevas de Firestore?<br>' + esc(err && err.message ? err.message : ''), 15000);
   });
   iniciarSincronizacionAdmin().catch(() => {});
 }
@@ -3733,8 +4030,8 @@ async function publicarBorrador(){
   const btn = document.getElementById('btn-publicar-borrador');
   try {
     const msg = (await publicadaCambio())
-      ? '⚠ ATENCIÓN: la página publicada se modificó DESPUÉS de que empezaste este borrador (por ejemplo, alguien editó desde ?admin).\n\nSi publicás, esos cambios se pierden y la página queda exactamente como este borrador.\n\n¿Publicar igual?'
-      : '¿Publicar el borrador?\n\nTodo lo que ves acá (productos, textos, videos, cinta, orden y categorías) pasa a la página que ven los visitantes.';
+      ? '⚠ ATENCIÓN: la página publicada se modificó DESPUÉS de que se inició este borrador (por ejemplo, alguien editó desde ?admin).\n\nSi publica, esos cambios se perderán y la página quedará exactamente como este borrador.\n\n¿Desea publicar de todos modos?'
+      : '¿Publicar el borrador?\n\nTodo el contenido actual (productos, textos, videos, cinta, orden y categorías) pasa a la página que ven los visitantes.';
     if(!confirm(msg)) return;
     if(btn){ btn.disabled = true; btn.textContent = 'Publicando…'; }
     const ts = await copiarDatosEntre(REFS_BORRADOR, REFS_PUBLICO, (n, t) => mostrarToast(`Publicando… ${n} de ${t}`));
@@ -3743,7 +4040,7 @@ async function publicarBorrador(){
     mostrarToast('Publicado ✓ — los visitantes ya ven los cambios');
   } catch(err){
     console.error('Error publicando borrador:', err);
-    mostrarToastError('⚠ No se pudo publicar.<br>' + esc(err && err.message ? err.message : 'Revisá la conexión.'), 10000);
+    mostrarToastError('⚠ No se pudo publicar.<br>' + esc(err && err.message ? err.message : 'Verifique la conexión.'), 10000);
   } finally {
     if(btn){ btn.disabled = false; btn.textContent = '🚀 Publicar en la página'; }
   }
@@ -3751,7 +4048,7 @@ async function publicarBorrador(){
 
 async function descartarBorrador(){
   if(!BORRADOR || !esPublicadorSync()) return;
-  if(!confirm('¿Descartar el borrador?\n\nSe pierden los cambios que no publicaste y el borrador vuelve a quedar igual que la página publicada.')) return;
+  if(!confirm('¿Descartar el borrador?\n\nSe perderán los cambios no publicados y el borrador volverá a quedar igual que la página publicada.')) return;
   try {
     mostrarToast('Descartando borrador…');
     const base = await lastModifiedPublicado();
@@ -4903,10 +5200,10 @@ async function actualizarEstadoHerramientas(){
         cldConfig = { cloudName: d.cloudName, preset: d.preset };
         cldEl.innerHTML = `Configurado ✓ — cloud name: <strong>${esc(d.cloudName)}</strong> · preset: <strong>${esc(d.preset)}</strong>`;
       } else {
-        cldEl.textContent = 'Sin configurar. Se te va a pedir la primera vez que subas una foto (o tocá "Configurar Cloudinary").';
+        cldEl.textContent = 'Sin configurar. Se solicitará la primera vez que suba una foto (o presione "Configurar Cloudinary").';
       }
     } catch(err){
-      cldEl.textContent = 'No se pudo leer la configuración (¿publicaste la regla de "privado" en Firestore?).';
+      cldEl.textContent = 'No se pudo leer la configuración (¿se publicó la regla de "privado" en Firestore?).';
     }
   }
   const nProd = contarFotosBase64();
@@ -4914,7 +5211,7 @@ async function actualizarEstadoHerramientas(){
   if(b64El){
     b64El.textContent = (nProd + nPag) === 0
       ? 'Todas las fotos ya están en Cloudinary ✓'
-      : `Pendientes: ${nProd} foto${nProd !== 1 ? 's' : ''} de productos y ${nPag} imagen${nPag !== 1 ? 'es' : ''} de la página (formato viejo base64).`;
+      : `Pendientes: ${nProd} foto${nProd !== 1 ? 's' : ''} de productos y ${nPag} imagen${nPag !== 1 ? 'es' : ''} de la página (formato anterior base64).`;
   }
   if(btnMigrar) btnMigrar.disabled = (nProd + nPag) === 0;
 }
@@ -4992,7 +5289,7 @@ async function migrarFotosACloudinary(){
     mostrarToast('Migración completa ✓');
   } catch(err){
     console.error('Error migrando fotos:', err);
-    toolsLog('⚠ Se cortó la migración: ' + esc(err.message) + '<br>Lo ya migrado quedó guardado. Volvé a tocar el botón para seguir.');
+    toolsLog('⚠ Se interrumpió la migración: ' + esc(err.message) + '<br>Lo migrado hasta el momento quedó guardado. Presione el botón nuevamente para continuar.');
   } finally {
     actualizarEstadoHerramientas();
   }
@@ -5014,3 +5311,164 @@ async function reconstruirIndice(){
   }
   actualizarEstadoHerramientas();
 }
+
+// ════════════════════════════════════════════════════════
+//  ARRASTRE CON RUEDA (ventanas del admin, con mouse)
+//  El arrastre nativo del navegador bloquea la rueda del mouse mientras se
+//  arrastra. Acá se reemplaza por uno propio que dispara los MISMOS eventos
+//  (dragstart / dragover / drop / dragend), así que todas las listas
+//  existentes siguen funcionando igual, pero ahora:
+//   · se puede girar la rueda con el botón apretado para subir o bajar;
+//   · si se lleva el elemento al borde de arriba o de abajo, la lista se
+//     desplaza sola.
+//  En celular no cambia nada (el arrastre nativo no se usa con el dedo).
+// ════════════════════════════════════════════════════════
+(function(){
+  const ZONAS_ARRASTRE = '.admin-modal-overlay, .reorder-modal-overlay, .cat-modal-overlay';
+  const UMBRAL = 5;        // px que hay que mover antes de que empiece el arrastre
+  const BORDE = 70;        // px desde el borde donde empieza el desplazamiento automático
+  const VEL_MAX = 22;      // px por cuadro
+  let pendiente = null;    // { el, x, y }
+  let activo = null;       // { el, dt, fantasma, sobre, permite, x, y, offX, offY, cont, raf }
+
+  const esArrastrable = el => el && el.closest && el.closest(ZONAS_ARRASTRE);
+
+  function contenedorDesplazable(el){
+    for(let n = el; n && n !== document.body; n = n.parentElement){
+      const oy = getComputedStyle(n).overflowY;
+      if((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight + 1) return n;
+    }
+    return document.scrollingElement || document.documentElement;
+  }
+
+  function evento(tipo, destino, extra){
+    if(!destino) return null;
+    const ev = new DragEvent(tipo, Object.assign({
+      bubbles: true, cancelable: true, composed: true,
+      clientX: activo.x, clientY: activo.y, dataTransfer: activo.dt
+    }, extra || {}));
+    destino.dispatchEvent(ev);
+    return ev;
+  }
+
+  // Busca qué hay debajo del puntero y le avisa (dragenter / dragleave / dragover)
+  function actualizarDestino(){
+    if(!activo) return;
+    const bajo = document.elementFromPoint(activo.x, activo.y);
+    if(bajo !== activo.sobre){
+      if(activo.sobre) evento('dragleave', activo.sobre, { relatedTarget: bajo });
+      if(bajo) evento('dragenter', bajo, { relatedTarget: activo.sobre });
+      activo.sobre = bajo;
+    }
+    const ev = evento('dragover', bajo);
+    activo.permite = !!(ev && ev.defaultPrevented);
+  }
+
+  function moverFantasma(){
+    if(activo && activo.fantasma){
+      activo.fantasma.style.transform = `translate(${activo.x - activo.offX}px, ${activo.y - activo.offY}px)`;
+    }
+  }
+
+  // Desplazamiento automático cerca de los bordes de la lista
+  function bucleAutoScroll(){
+    if(!activo) return;
+    const c = activo.cont;
+    const esPagina = c === document.scrollingElement || c === document.documentElement;
+    const r = esPagina ? { top: 0, bottom: window.innerHeight } : c.getBoundingClientRect();
+    let vel = 0;
+    if(activo.y < r.top + BORDE)         vel = -Math.min(VEL_MAX, Math.ceil((r.top + BORDE - activo.y) / 3));
+    else if(activo.y > r.bottom - BORDE) vel =  Math.min(VEL_MAX, Math.ceil((activo.y - (r.bottom - BORDE)) / 3));
+    if(vel){
+      const antes = c.scrollTop;
+      c.scrollTop += vel;
+      if(c.scrollTop !== antes) actualizarDestino();
+    }
+    activo.raf = requestAnimationFrame(bucleAutoScroll);
+  }
+
+  function empezar(){
+    const el = pendiente.el;
+    const r = el.getBoundingClientRect();
+    let dt = null;
+    try { dt = new DataTransfer(); } catch(e) {}
+    activo = {
+      el, dt, sobre: null, permite: false,
+      x: pendiente.x, y: pendiente.y,
+      offX: pendiente.x - r.left, offY: pendiente.y - r.top,
+      cont: contenedorDesplazable(el.parentElement || el)
+    };
+    pendiente = null;
+    evento('dragstart', el);
+    // "Fantasma": copia del elemento que sigue al puntero
+    const f = el.cloneNode(true);
+    f.classList.add('arrastre-fantasma');
+    f.removeAttribute('id');
+    f.style.width = r.width + 'px';
+    f.style.height = r.height + 'px';
+    document.body.appendChild(f);
+    activo.fantasma = f;
+    moverFantasma();
+    document.body.classList.add('arrastrando-admin');
+    actualizarDestino();
+    activo.raf = requestAnimationFrame(bucleAutoScroll);
+  }
+
+  function terminar(soltar){
+    if(!activo) return;
+    const a = activo;
+    cancelAnimationFrame(a.raf);
+    if(soltar){
+      actualizarDestino();
+      if(a.permite && a.sobre) evento('drop', a.sobre);
+    } else if(a.sobre){
+      evento('dragleave', a.sobre);
+    }
+    evento('dragend', a.el);
+    if(a.fantasma) a.fantasma.remove();
+    document.body.classList.remove('arrastrando-admin');
+    activo = null;
+    // El "click" que sigue al soltar no debe seleccionar nada
+    const anular = e => { e.stopPropagation(); e.preventDefault(); };
+    window.addEventListener('click', anular, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener('click', anular, { capture: true }), 0);
+  }
+
+  document.addEventListener('mousedown', e => {
+    if(e.button !== 0) return;
+    const el = e.target.closest && e.target.closest('[draggable="true"]');
+    if(!el || !esArrastrable(el)) return;
+    if(e.target.closest('button, input, select, textarea, a, label')) return;
+    pendiente = { el, x: e.clientX, y: e.clientY };
+    e.preventDefault();   // evita el arrastre nativo y la selección de texto
+  }, true);
+
+  // Por las dudas: si igual arranca un arrastre nativo dentro del admin, se cancela
+  document.addEventListener('dragstart', e => {
+    if(e.isTrusted && esArrastrable(e.target)){ e.preventDefault(); e.stopImmediatePropagation(); }
+  }, true);
+
+  window.addEventListener('mousemove', e => {
+    if(pendiente){
+      if(Math.abs(e.clientX - pendiente.x) + Math.abs(e.clientY - pendiente.y) < UMBRAL) return;
+      pendiente.x = e.clientX; pendiente.y = e.clientY;
+      empezar();
+    }
+    if(!activo) return;
+    if(!(e.buttons & 1)){ terminar(true); return; }   // se soltó fuera de la ventana
+    activo.x = e.clientX; activo.y = e.clientY;
+    moverFantasma();
+    actualizarDestino();
+  }, true);
+
+  window.addEventListener('mouseup', () => {
+    pendiente = null;
+    if(activo) terminar(true);
+  }, true);
+
+  // La rueda desplaza la lista normalmente; al moverse el contenido, se recalcula el destino
+  document.addEventListener('scroll', () => { if(activo) actualizarDestino(); }, true);
+
+  window.addEventListener('keydown', e => { if(e.key === 'Escape' && activo) terminar(false); });
+  window.addEventListener('blur', () => { pendiente = null; if(activo) terminar(false); });
+})();

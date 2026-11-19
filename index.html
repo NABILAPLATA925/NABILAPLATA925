@@ -42,7 +42,7 @@
      ═══════════════════════════════════════ -->
 <script defer src="config.js"></script>
 
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=5.1.5">
 
 <link rel="icon" href="img/favicon.png" type="image/png">
 
@@ -332,7 +332,7 @@
   <div class="admin-badge">
     <span class="dot-live"></span>
     <span class="badge-normal">Modo Administrador — <span id="admin-badge-nombre"></span></span>
-    <span class="badge-borrador" title="Los cambios NO se ven en la página hasta que toques Publicar">Borrador · no visible al público</span>
+    <span class="badge-borrador" title="Los cambios NO se verán en la página hasta que presione Publicar">Borrador · no visible al público</span>
   </div>
   <div class="admin-actions">
     <button class="btn-admin-add" onclick="abrirModalAgregar()">+ Agregar producto</button>
@@ -341,7 +341,7 @@
     <button class="btn-admin-reset" onclick="abrirModalMarquee()">📢 Cinta Promocional</button>
     <button class="btn-admin-reset" onclick="abrirModalEditarPagina()">✏ Editar página</button>
     <button class="btn-admin-reset" onclick="abrirModalHerramientas()">⚙ Herramientas</button>
-    <button onclick="logoutAdmin()">Salir</button>
+    <button onclick="logoutAdmin()">Cerrar sesión</button>
   </div>
 </div>
 
@@ -349,7 +349,7 @@
 <div class="borrador-panel" id="borrador-panel">
   <div class="borrador-panel-titulo">📝 Borrador <small>no visible al público</small></div>
   <div class="borrador-aviso" id="borrador-aviso" style="display:none">
-    ⚠ La página publicada tiene cambios que no están en este borrador (por ejemplo, alguien editó desde ?admin). Si publicás, esos cambios se pisan.
+    ⚠ La página publicada tiene cambios que no están en este borrador (por ejemplo, alguien editó desde ?admin). Si publica, esos cambios se sobrescribirán.
     <button type="button" class="borrador-aviso-ok" onclick="ignorarAvisoBorrador()">Ya lo revisé, ocultar aviso</button>
   </div>
   <div class="borrador-panel-botones">
@@ -386,7 +386,7 @@
       <p style="margin:4px 0 0;font-size:11px;color:var(--text-soft)">El precio de arriba se mostrará tachado y este precio se destacará como el nuevo precio de oferta.</p>
     </div>
     <div class="admin-field">
-      <label>Categorías * <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(podés elegir más de una)</span></label>
+      <label>Categorías * <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(puede elegir más de una)</span></label>
       <div id="a-tipos-checks" style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 0;min-height:36px"></div>
       <button type="button" onclick="toggleNuevaCat()" style="margin-top:4px;background:none;border:1px dashed var(--detalles);border-radius:2px;padding:6px 12px;cursor:pointer;font-family:'Jost';font-size:13px;color:var(--text-soft)">＋ Nueva categoría</button>
       <div id="a-tipo-nueva-wrap" style="display:none;margin-top:8px">
@@ -395,13 +395,13 @@
     </div>
     <div class="admin-field">
       <label>Descripción *</label>
-      <textarea id="a-desc" placeholder="Contá sus características, qué lo hace especial…"></textarea>
+      <textarea id="a-desc" placeholder="Describa sus características principales…"></textarea>
     </div>
     <div class="admin-field">
-      <label>Fotos del producto * <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(hasta 3 fotos · solo imágenes · hacé clic en una para marcarla como portada)</span></label>
+      <label>Fotos del producto * <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(hasta 3 fotos · solo imágenes · haga clic en una para marcarla como portada)</span></label>
       <label class="admin-foto-label" for="a-foto-input">
         <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <span id="a-foto-texto">Hacé clic para subir imágenes (máximo 3)</span>
+        <span id="a-foto-texto">Haga clic para subir imágenes (máximo 3)</span>
       </label>
       <input type="file" id="a-foto-input" accept="image/jpeg,image/png,image/webp" multiple style="display:none" onchange="agregarFotos(event)">
       <div class="fotos-preview-grid" id="fotos-preview-grid"></div>
@@ -419,7 +419,7 @@
   <div class="reorder-modal">
     <button class="admin-close" onclick="document.getElementById('reorder-modal').classList.remove('active')">✕</button>
     <h2>Reordenar productos</h2>
-    <p class="a-subtitle">Arrastrá las tarjetas para cambiar el orden</p>
+    <p class="a-subtitle">Arrastre las tarjetas para cambiar el orden</p>
     <div class="admin-field" style="margin-bottom:1.4rem">
       <label>Categoría</label>
       <select id="reorder-cat-select" onchange="cambiarCatReorden()"></select>
@@ -437,8 +437,8 @@
   <div class="cat-modal">
     <button class="admin-close" onclick="document.getElementById('cat-modal').classList.remove('active')">✕</button>
     <h2>Categorías visibles</h2>
-    <p class="a-subtitle">Elegí cuáles mostrar en la página y la imagen de cada una</p>
-    <p style="font-size:11px;color:var(--text-soft);margin:-0.6rem 0 1rem">Tocá el círculo de una categoría para elegir su imagen (aparece en el carrusel de categorías). Si no elegís ninguna, se usa la foto del primer producto. Con «En el carrusel de categorías» elegís cuáles aparecen en ese carrusel.</p>
+    <p class="a-subtitle">Seleccione cuáles mostrar en la página y la imagen de cada una</p>
+    <p style="font-size:11px;color:var(--text-soft);margin:-0.6rem 0 1rem">Presione el círculo de una categoría para elegir su imagen (aparece en el carrusel de categorías). Si no elige ninguna, se utilizará la foto del primer producto. Con «En el carrusel de categorías» elige cuáles aparecen en ese carrusel.</p>
     <div id="cat-toggle-list"></div>
     <div class="reorder-modal-btns" style="margin-top:2rem">
       <button class="btn-cancelar" onclick="document.getElementById('cat-modal').classList.remove('active')">Cancelar</button>
@@ -495,7 +495,7 @@
 <!-- TOAST -->
 <div class="admin-toast" id="admin-toast"></div>
 
-<script defer src="script.js"></script>
+<script defer src="script.js?v=5.1.5"></script>
 
 <!-- MODAL EDITAR PÁGINA (admin) -->
 <div class="admin-modal-overlay" id="edit-pagina-modal" onclick="cerrarModalEditarPagina(event)">
@@ -515,11 +515,11 @@
     <!-- TAB: INICIO / HERO -->
     <div class="ep-panel" id="ep-panel-hero">     
       <div class="admin-field">
-        <label>Imagen del título principal (logo del hero)</label>
-        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Subí la imagen que reemplaza el texto del título en el hero. Se sube a Cloudinary y se aplica automáticamente.</p>
+        <label>Imagen del título principal (logo de la portada)</label>
+        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Suba la imagen que reemplaza el texto del título en la portada. Se sube a Cloudinary y se aplica automáticamente.</p>
         <label class="admin-foto-label" for="ep-hero-logo-input" style="margin-top:4px">
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          <span id="ep-hero-logo-texto">Hacé clic para subir la imagen del título</span>
+          <span id="ep-hero-logo-texto">Haga clic para subir la imagen del título</span>
         </label>
         <input type="file" id="ep-hero-logo-input" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="cargarHeroLogo(event)">
         <div id="ep-hero-logo-preview" style="margin-top:10px;display:none">
@@ -532,7 +532,7 @@
       </div>
       <div class="admin-field">
         <label>Imagen para el NAV (Al lado de la marca)</label>
-        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Subí la imagen que aparecerá junto a tu marca en la barra superior. Usá un archivo PNG con fondo transparente.</p>
+        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Suba la imagen que aparecerá junto a su marca en la barra superior. Utilice un archivo PNG con fondo transparente.</p>
         <label class="admin-foto-label" for="ep-nav-logo-input" style="margin-top:4px">
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           <span id="ep-nav-logo-texto">Hacé clic para subir la imagen del NAV</span>
@@ -555,12 +555,12 @@
         <input type="text" id="ep-ubicacion" placeholder="Ej: Córdoba">
       </div>
       <div class="admin-field">
-        <label>Subtítulo del hero</label>
+        <label>Subtítulo de la portada</label>
         <textarea id="ep-hero-subtitulo" rows="2" placeholder="Frase principal debajo del título…"></textarea>
       </div>
       <div class="admin-field">
         <label>Imagen de la sección Nosotros</label>
-        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Usá un PNG con fondo transparente (se conserva la transparencia).</p>
+        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Utilice un PNG con fondo transparente (se conserva la transparencia).</p>
         <label class="admin-foto-label" for="ep-nosotros-img-input" style="margin-top:6px">
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           <span id="ep-nosotros-img-texto">Hacé clic para cambiar la imagen</span>
@@ -577,29 +577,32 @@
     <div class="ep-panel" id="ep-panel-videos" style="display:none">
       <div class="admin-field">
         <label>Videos de la página principal</label>
-        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Hasta 3 videos en total (MP4, WEBM o MOV, máximo 40 MB cada uno). Para cada video elegí <strong>dónde</strong> va y si se reproduce solo; los demás se ven con "tocar para ver".</p>
+        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Hasta 3 videos en total (MP4, WEBM o MOV, máximo 40 MB cada uno). Para cada video elija <strong>dónde</strong> se ubica y si se reproduce solo; los demás se ven con "tocar para ver".</p>
         <div class="ep-aviso-cuota" role="note">
           <strong>⚠ Máximo 1 video automático.</strong>
           No se pueden seleccionar 2 o más videos que se reproduzcan solos, por la cuota del plan gratuito de Cloudinary (donde se alojan los videos). Un video automático se descarga en todas las visitas y consume mucho del plan.
         </div>
         <label class="admin-foto-label" for="ep-video-input" id="ep-video-label" style="margin-top:4px">
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          <span id="ep-video-texto">Hacé clic para agregar un video</span>
+          <span id="ep-video-texto">Haga clic para agregar un video</span>
         </label>
         <input type="file" id="ep-video-input" accept="video/mp4,video/webm,video/quicktime" style="display:none" onchange="agregarVideoInicio(event)">
         <div class="ep-videos-lista" id="ep-videos-lista"></div>
       </div>
       <div class="admin-field">
         <label>Imágenes decorativas</label>
-        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Hasta 5 imágenes (JPG, PNG o WEBP) para decorar la página: entre secciones o entre categorías de productos. Se achican solas antes de subirse. Los PNG conservan la transparencia.</p>
+        <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px">Hasta 5 imágenes (JPG, PNG o WEBP) para decorar la página: entre secciones o entre categorías de productos. Se reducen automáticamente antes de subirse. Los PNG conservan la transparencia.</p>
         <label class="admin-foto-label" for="ep-imagen-input" id="ep-imagen-label" style="margin-top:4px">
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          <span id="ep-imagen-texto">Hacé clic para agregar imágenes</span>
+          <span id="ep-imagen-texto">Haga clic para agregar imágenes</span>
         </label>
         <input type="file" id="ep-imagen-input" accept="image/jpeg,image/png,image/webp" multiple style="display:none" onchange="agregarImagenDeco(event)">
         <div class="ep-videos-lista" id="ep-imagenes-lista"></div>
         <button type="button" class="ep-btn-acomodar" id="ep-btn-acomodar" onclick="abrirAcomodarVideos()" style="display:none">
-          🗺 Acomodar videos e imágenes en la página
+          🗺 Organizar videos e imágenes en la página
+        </button>
+        <button type="button" class="ep-btn-acomodar" id="ep-btn-estilo" onclick="abrirEstiloMedios()" style="display:none">
+          🎨 Forma, tamaño y marco de videos e imágenes
         </button>
       </div>
     </div>
@@ -631,19 +634,19 @@
         <input type="text" id="edit-nosotros-slogan">
       </div>
       <div class="admin-field">
-        <label>Stat 1 — Número / Símbolo</label>
+        <label>Estadística 1 — Número / Símbolo</label>
         <input type="text" id="ep-stat1-num" placeholder="Ej: 100%">
       </div>
       <div class="admin-field">
-        <label>Stat 1 — Descripción</label>
+        <label>Estadística 1 — Descripción</label>
         <input type="text" id="ep-stat1-label" placeholder="Ej: Estilo propio">
       </div>
       <div class="admin-field">
-        <label>Stat 2 — Número / Símbolo</label>
+        <label>Estadística 2 — Número / Símbolo</label>
         <input type="text" id="ep-stat2-num" placeholder="Ej: ★">
       </div>
       <div class="admin-field">
-        <label>Stat 2 — Descripción</label>
+        <label>Estadística 2 — Descripción</label>
         <input type="text" id="ep-stat2-label" placeholder="Ej: Tendencias actuales">
       </div>
     </div>
@@ -665,7 +668,7 @@
       </div>
       <div class="admin-field">
         <label>Mensaje al consultar por un producto</label>
-        <textarea id="ep-wa-texto-producto" rows="2" placeholder="Usá {nombre} para incluir el nombre del producto"></textarea>
+        <textarea id="ep-wa-texto-producto" rows="2" placeholder="Utilice {nombre} para incluir el nombre del producto"></textarea>
       </div>
       <div class="admin-field" style="margin-top:1.4rem;border-top:1px solid var(--detalles);padding-top:1.4rem">
         <label>Usuario de Instagram <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(sin @)</span></label>
@@ -681,15 +684,15 @@
         <input type="text" id="ep-contacto-titulo" placeholder="Ej: ¿Buscás algo especial?">
       </div>
       <div class="admin-field">
-        <label>Título del bloque CTA</label>
+        <label>Título del bloque de llamada a la acción</label>
         <input type="text" id="ep-cta-titulo" placeholder="">
       </div>
       <div class="admin-field">
-        <label>Texto del bloque CTA</label>
+        <label>Texto del bloque de llamada a la acción</label>
         <textarea id="ep-cta-parrafo" rows="3"></textarea>
       </div>
       <div class="admin-field">
-        <label>Texto del botón CTA</label>
+        <label>Texto del botón de llamada a la acción</label>
         <input type="text" id="ep-cta-boton" placeholder="Ej: Escribinos por WhatsApp">
       </div>
     </div>
@@ -706,7 +709,7 @@
   <div class="admin-modal" style="max-width:720px;max-height:90vh;overflow-y:auto">
     <button class="admin-close" onclick="document.getElementById('marquee-modal-overlay').classList.remove('active')">✕</button>
     <h2>Cinta Promocional</h2>
-    <p class="a-subtitle">Editá los mensajes que se desplazan en la barra superior</p>
+    <p class="a-subtitle">Edite los mensajes que se desplazan en la barra superior</p>
 
     <div class="admin-field" style="display:flex;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--detalles);padding-bottom:1.2rem;margin-bottom:1.2rem">
       <label style="flex:1;min-width:140px">
@@ -738,7 +741,7 @@
     </div>
 
     <div class="admin-field" style="margin-top:1.4rem">
-      <label>Banners <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(arrastrá para reordenar)</span></label>
+      <label>Banners <span style="font-size:10px;color:var(--text-soft);text-transform:none;letter-spacing:0">(arrastre para reordenar)</span></label>
       <ul class="reorder-list" id="mq-banner-list" style="margin-top:8px"></ul>
       <button type="button" onclick="abrirFormBanner(null)" style="margin-top:10px;background:none;border:1px dashed var(--detalles);border-radius:2px;padding:8px 14px;cursor:pointer;font-family:'Jost';font-size:13px;color:var(--text-soft);width:100%">＋ Agregar banner</button>
     </div>
@@ -832,14 +835,14 @@
     </div>
 
     <div class="admin-field">
-      <label>Fotos en formato viejo</label>
+      <label>Fotos en formato anterior</label>
       <p class="tools-estado" id="tools-b64-estado">Cargando…</p>
       <button class="btn-guardar" id="tools-btn-migrar" onclick="migrarFotosACloudinary()">Migrar fotos a Cloudinary</button>
     </div>
 
     <div class="admin-field">
       <label>Catálogo público</label>
-      <p class="tools-estado">Usalo si después de una restauración o de editar en la consola de Firebase algo no se ve actualizado.</p>
+      <p class="tools-estado">Utilícelo si, después de una restauración o de editar en la consola de Firebase, algún contenido no se ve actualizado.</p>
       <button class="btn-cancelar" onclick="reconstruirIndice()">Regenerar índice</button>
     </div>
 
@@ -852,7 +855,7 @@
   <div class="login-modal">
     <div class="login-modal-logo" id="login-modal-logo"></div>
     <h2>Acceso Administrador</h2>
-    <p class="login-subtitle">Ingresá tus credenciales para continuar</p>
+    <p class="login-subtitle">Ingrese sus credenciales para continuar</p>
     <div class="login-field">
       <label>Email</label>
       <input type="email" id="login-email" placeholder="admin@ejemplo.com" autocomplete="username">
@@ -875,7 +878,7 @@
       </div>
     </div>
     <p class="login-error" id="login-error"></p>
-    <p class="login-forgot"><a href="#" onclick="mostrarAyudaContrasena(event)">¿Olvidaste tu contraseña?</a></p>
+    <p class="login-forgot"><a href="#" onclick="mostrarAyudaContrasena(event)">¿Olvidó su contraseña?</a></p>
     <button class="login-btn" id="login-btn" onclick="submitLogin()">Ingresar</button>
     <button class="login-cancel" onclick="cancelarLogin()">Cancelar</button>
   </div>
@@ -886,12 +889,12 @@
 <div class="admin-modal-overlay vl-overlay" id="video-layout-modal" onclick="if(event.target===this) cerrarAcomodarVideos(false)">
   <div class="admin-modal vl-modal">
     <button class="admin-close" onclick="cerrarAcomodarVideos(false)">✕</button>
-    <h2>Acomodar videos e imágenes</h2>
-    <p class="a-subtitle">Así está ordenada tu página</p>
+    <h2>Organizar videos e imágenes</h2>
+    <p class="a-subtitle">Distribución actual de la página</p>
     <p class="vl-instrucciones">
-      <span class="vl-solo-compu">Arrastrá cada video o imagen al lugar de la página donde lo querés.</span>
-      <span class="vl-solo-cel">Tocá un video o imagen y después tocá el lugar de la página donde lo querés.</span>
-      También podés ponerlos entre categorías de productos. Si soltás uno sobre otro, queda antes que ese.
+      <span class="vl-solo-compu">Arrastre cada video o imagen a la ubicación deseada de la página.</span>
+      <span class="vl-solo-cel">Seleccione un video o imagen y luego la ubicación deseada de la página.</span>
+      También puede ubicarlos entre categorías de productos. Al soltarlo sobre otro elemento, se ubicará antes de este.
     </p>
     <div class="vl-ayuda-sel" id="vl-ayuda-sel" style="display:none"></div>
     <div class="vl-esquema" id="vl-esquema"></div>
@@ -899,7 +902,62 @@
       <button class="btn-cancelar" onclick="cerrarAcomodarVideos(false)">Cancelar</button>
       <button class="btn-guardar" onclick="cerrarAcomodarVideos(true)">Aplicar</button>
     </div>
-    <p class="vl-nota">Después tocá «Guardar cambios» en «Editar página» para publicarlo.</p>
+    <p class="vl-nota">Luego presione «Guardar cambios» en «Editar página» para publicarlo.</p>
+  </div>
+</div>
+
+<!-- VENTANA: FORMATO DE VIDEOS E IMÁGENES (forma, tamaño, esquinas, marco) -->
+<div class="admin-modal-overlay vl-overlay" id="video-estilo-modal" onclick="if(event.target===this) cerrarEstiloMedios(false)">
+  <div class="admin-modal ve-modal">
+    <button class="admin-close" onclick="cerrarEstiloMedios(false)">✕</button>
+    <h2>Formato de videos e imágenes</h2>
+    <p class="a-subtitle">Vista previa de la página</p>
+    <p class="vl-instrucciones">Seleccione un video o imagen en el esquema y ajuste su forma, alineación, tamaño, esquinas y marco. La vista previa muestra cómo se verá en la página.</p>
+    <div class="ve-layout">
+      <div class="ve-esquema-wrap"><div class="vl-esquema ve-esquema" id="ve-esquema"></div></div>
+      <div class="ve-panel" id="ve-panel">
+        <div class="ve-sel-nombre" id="ve-sel-nombre"></div>
+        <div class="ve-campo">
+          <span class="ve-titulo">Forma</span>
+          <div class="ve-formas" id="ve-formas">
+            <button type="button" data-forma="original" onclick="cambiarEstiloMedio('forma','original')"><i class="ve-ico ve-ico-original"></i>Original</button>
+            <button type="button" data-forma="cuadrado" onclick="cambiarEstiloMedio('forma','cuadrado')"><i class="ve-ico ve-ico-cuadrado"></i>Cuadrado</button>
+            <button type="button" data-forma="circulo" onclick="cambiarEstiloMedio('forma','circulo')"><i class="ve-ico ve-ico-circulo"></i>Círculo</button>
+          </div>
+        </div>
+        <div class="ve-campo">
+          <span class="ve-titulo">Alineación</span>
+          <div class="ve-formas ve-alinear" id="ve-alinear">
+            <button type="button" data-alinear="izquierda" onclick="cambiarEstiloMedio('alinear','izquierda')"><i class="ve-ico-al ve-al-izq"><b></b></i>Izquierda</button>
+            <button type="button" data-alinear="centro" onclick="cambiarEstiloMedio('alinear','centro')"><i class="ve-ico-al ve-al-cen"><b></b></i>Centro</button>
+            <button type="button" data-alinear="derecha" onclick="cambiarEstiloMedio('alinear','derecha')"><i class="ve-ico-al ve-al-der"><b></b></i>Derecha</button>
+          </div>
+        </div>
+        <div class="ve-campo">
+          <span class="ve-titulo">Tamaño <b id="ve-tam-val"></b></span>
+          <input type="range" id="ve-tam" min="20" max="100" step="5" oninput="cambiarEstiloMedio('tam', this.value)">
+        </div>
+        <div class="ve-campo" id="ve-radio-fila">
+          <span class="ve-titulo">Esquinas redondeadas <b id="ve-radio-val"></b></span>
+          <input type="range" id="ve-radio" min="0" max="80" step="1" oninput="cambiarEstiloMedio('radio', this.value)">
+        </div>
+        <div class="ve-campo">
+          <span class="ve-titulo">Marco <b id="ve-marco-val"></b></span>
+          <input type="range" id="ve-marco" min="0" max="20" step="1" oninput="cambiarEstiloMedio('marco', this.value)">
+          <div class="ve-colores" id="ve-colores"></div>
+        </div>
+        <label class="ve-check"><input type="checkbox" id="ve-sombra" onchange="cambiarEstiloMedio('sombra', this.checked)"> Sombra</label>
+        <div class="ve-panel-btns">
+          <button type="button" onclick="restablecerEstiloMedio()" title="Vuelve este elemento al formato original">↺ Restablecer</button>
+          <button type="button" onclick="copiarEstiloATodos()" title="Aplica este mismo formato a todos los videos e imágenes">⧉ Aplicar a todos</button>
+        </div>
+      </div>
+    </div>
+    <div class="admin-actions vl-acciones">
+      <button class="btn-cancelar" onclick="cerrarEstiloMedios(false)">Cancelar</button>
+      <button class="btn-guardar" onclick="cerrarEstiloMedios(true)">Aplicar</button>
+    </div>
+    <p class="vl-nota">Luego presione «Guardar cambios» en «Editar página» para publicarlo.</p>
   </div>
 </div>
 </body>
