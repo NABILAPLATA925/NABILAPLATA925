@@ -62,13 +62,8 @@ auth.onAuthStateChanged(user => {
     if(BORRADOR){
       arrancarBorrador(user);
     } else {
+      // ?admin edita la página publicada. Al borrador se entra solo escribiendo ?admin2.
       if(!yaEraAdmin) iniciarSincronizacionAdmin().catch(() => {});
-      // En ?admin, a la cuenta que puede publicar se le muestra el acceso al borrador
-      calcularEsPublicador(user).then(ok => {
-        ES_PUBLICADOR = ok;
-        const b = document.getElementById('btn-ir-borrador');
-        if(b) b.style.display = ok ? '' : 'none';
-      });
     }
   } else if(user && !ADMIN_REQUEST){
     // Sesión activa pero URL normal → cerrar sesión silenciosamente
@@ -112,6 +107,7 @@ let categoriaOrden = [];    // orden personalizado de categorías
 let ordenCategorias = {};
 let productosOcultos = [];  // IDs de productos ocultos individualmente
 let imagenesCategorias = {}; // { nombreCategoría: url de Cloudinary } para el carrusel de categorías
+let categoriasFueraCarrusel = []; // categorías destildadas: no aparecen en el carrusel de categorías
 
 const params = new URLSearchParams(location.search);
 const ADMIN_REQUEST = params.has('admin') || BORRADOR;
@@ -334,6 +330,7 @@ async function cargarDesdeFirebase(){
       ordenCategorias   = m.ordenCategorias || {};
       productosOcultos  = Array.isArray(m.productosOcultos)  ? m.productosOcultos  : [];
       imagenesCategorias = (m.imagenesCategorias && typeof m.imagenesCategorias === 'object') ? m.imagenesCategorias : {};
+      categoriasFueraCarrusel = Array.isArray(m.categoriasFueraCarrusel) ? m.categoriasFueraCarrusel : [];
     }
   } else {
     console.warn('No se pudo cargar metadata:', metaRes.reason);
@@ -427,12 +424,13 @@ async function guardarMetaEnFirebase(){
     productosOcultos,
     // Solo las imágenes de categorías que siguen existiendo
     imagenesCategorias: Object.fromEntries(Object.entries(imagenesCategorias).filter(([c]) => getCategorias().includes(c))),
+    categoriasFueraCarrusel: categoriasFueraCarrusel.filter(c => getCategorias().includes(c)),
     categorias: getCategorias(),
     lastModified: ts
   }, { merge: true });
   try {
     localStorage.setItem(LS('meta_cache'), JSON.stringify({
-      categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos, imagenesCategorias
+      categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos, imagenesCategorias, categoriasFueraCarrusel
     }));
     localStorage.setItem(LS('cache_ts'), String(ts));
   } catch(e) {}
@@ -746,6 +744,7 @@ async function inicializar(){
       ordenCategorias   = m.ordenCategorias || {};
       productosOcultos  = Array.isArray(m.productosOcultos)  ? m.productosOcultos  : [];
       imagenesCategorias = (m.imagenesCategorias && typeof m.imagenesCategorias === 'object') ? m.imagenesCategorias : {};
+      categoriasFueraCarrusel = Array.isArray(m.categoriasFueraCarrusel) ? m.categoriasFueraCarrusel : [];
     }
   } catch(e) {}
 
@@ -761,7 +760,7 @@ async function inicializar(){
     // Guardar metadata en caché (no los productos) para el orden de categorías
     try {
       localStorage.setItem(LS('meta_cache'), JSON.stringify({
-        categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos, imagenesCategorias
+        categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos, imagenesCategorias, categoriasFueraCarrusel
       }));
     } catch(e) {}
 
@@ -772,7 +771,7 @@ async function inicializar(){
       productos = await cargarDesdeFirebase();
       try {
         localStorage.setItem(LS('meta_cache'), JSON.stringify({
-          categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos, imagenesCategorias
+          categoriasOcultas, categoriaOrden, ordenCategorias, productosOcultos, imagenesCategorias, categoriasFueraCarrusel
         }));
       } catch(e) {}
     } catch(err2){
@@ -1267,7 +1266,7 @@ function buildAllCarousels(){
   // Volver a ubicar videos/imágenes (los lugares entre categorías se recrearon)
   categoriasEnPagina = categoriasNuevas;
   carruselesConstruidos = true;
-  renderCatNav(navLista);
+  renderCatNav(navLista.filter(x => !categoriasFueraCarrusel.includes(x.cat)));
   videosRenderKey = null;
   renderVideosInicio();
 }
@@ -2435,6 +2434,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Se suben a Cloudinary recién al tocar "Guardar".
 let catImgPendientes = {};   // { cat: base64 }
 let catImgQuitar = new Set(); // categorías que vuelven a usar la foto del primer producto
+let catFueraCarruselTemp = new Set(); // casillas "En el carrusel" mientras el modal está abierto
 
 function elegirImagenCategoria(cat){
   const input = document.createElement('input');
@@ -2492,6 +2492,7 @@ async function aplicarImagenesCategorias(){
 function abrirModalCategorias(){
   catImgPendientes = {};
   catImgQuitar = new Set();
+  catFueraCarruselTemp = new Set(categoriasFueraCarrusel);
   renderCatToggles();
   document.getElementById('cat-modal').classList.add('active');
 }
@@ -2528,6 +2529,9 @@ function renderCatToggles(){
         <div style="min-width:0">
           <div class="cat-toggle-name">${esc(cat)}</div>
           <div class="cat-toggle-count">${count} producto${count !== 1 ? 's' : ''}</div>
+          <label class="cat-carrusel-check" title="Si la destildás, esta categoría no aparece en el carrusel de categorías (sigue apareciendo en la página)">
+            <input type="checkbox" class="chk-carrusel" ${catFueraCarruselTemp.has(cat) ? '' : 'checked'}> En el carrusel de categorías
+          </label>
           <div class="cat-img-estado">${mini.propia ? (mini.nueva ? 'Imagen nueva (se sube al guardar)' : 'Imagen propia') + ' · <a href="#" class="cat-img-quitar">usar la del primer producto</a>' : 'Imagen del primer producto · tocá para cambiarla'}</div>
         </div>
       </div>
@@ -2541,6 +2545,9 @@ function renderCatToggles(){
 
     item.querySelector('.btn-cat-delete').addEventListener('click', () => eliminarCategoria(cat));
     item.querySelector('.cat-img-btn').addEventListener('click', () => elegirImagenCategoria(cat));
+    item.querySelector('.chk-carrusel').addEventListener('change', e => {
+      if(e.target.checked) catFueraCarruselTemp.delete(cat); else catFueraCarruselTemp.add(cat);
+    });
     const linkQuitar = item.querySelector('.cat-img-quitar');
     if(linkQuitar) linkQuitar.addEventListener('click', e => { e.preventDefault(); quitarImagenCategoria(cat); });
 
@@ -2584,7 +2591,8 @@ async function guardarCategorias(){
     mostrarToastError('⚠ No se pudo subir la imagen.<br>' + esc(err && err.message ? err.message : 'Revisá la conexión.'), 8000);
     return;
   }
-  const checkboxes = document.querySelectorAll('#cat-toggle-list input[type=checkbox]');
+  const checkboxes = document.querySelectorAll('#cat-toggle-list .toggle-switch input[type=checkbox]');
+  categoriasFueraCarrusel = [...catFueraCarruselTemp];
   categoriasOcultas = [];
   checkboxes.forEach(cb => {
     if(!cb.checked) categoriasOcultas.push(cb.dataset.cat);
@@ -3653,7 +3661,6 @@ async function descartarBorrador(){
 }
 
 function verPaginaPublicada(){ window.open(location.pathname, '_blank'); }
-function irABorrador(){ location.href = location.pathname + '?admin2'; }
 
 // ════════════════════════════════════════════════════════
 //  Toast

@@ -341,8 +341,6 @@
     <button class="btn-admin-reset" onclick="abrirModalMarquee()">📢 Cinta Promocional</button>
     <button class="btn-admin-reset" onclick="abrirModalEditarPagina()">✏ Editar página</button>
     <button class="btn-admin-reset" onclick="abrirModalHerramientas()">⚙ Herramientas</button>
-    <!-- Solo en ?admin, para la cuenta que publica -->
-    <button class="btn-admin-reset solo-publico" id="btn-ir-borrador" onclick="irABorrador()" style="display:none">📝 Ir al borrador</button>
     <button onclick="logoutAdmin()">Salir</button>
   </div>
 </div>
@@ -437,7 +435,7 @@
     <button class="admin-close" onclick="document.getElementById('cat-modal').classList.remove('active')">✕</button>
     <h2>Categorías visibles</h2>
     <p class="a-subtitle">Elegí cuáles mostrar en la página y la imagen de cada una</p>
-    <p style="font-size:11px;color:var(--text-soft);margin:-0.6rem 0 1rem">Tocá el círculo de una categoría para elegir su imagen (aparece en el carrusel de categorías). Si no elegís ninguna, se usa la foto del primer producto.</p>
+    <p style="font-size:11px;color:var(--text-soft);margin:-0.6rem 0 1rem">Tocá el círculo de una categoría para elegir su imagen (aparece en el carrusel de categorías). Si no elegís ninguna, se usa la foto del primer producto. Con «En el carrusel de categorías» elegís cuáles aparecen en ese carrusel.</p>
     <div id="cat-toggle-list"></div>
     <div class="reorder-modal-btns" style="margin-top:2rem">
       <button class="btn-cancelar" onclick="document.getElementById('cat-modal').classList.remove('active')">Cancelar</button>
